@@ -1,0 +1,4 @@
+{
+  "pages": ["pages/home/index", "pages/components/index"],
+  "window": { "navigationBarTitleText": "AIUI 0.17 Conformance" }
+}

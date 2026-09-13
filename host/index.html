@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>InkLab</title>
+<script>
+  try {
+    const saved = localStorage.getItem('inklab.theme');
+    document.documentElement.dataset.theme = saved === 'light' || saved === 'dark'
+      ? saved : (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  } catch { document.documentElement.dataset.theme = 'dark'; }
+</script>
+<style>
+  :root{
+    --bg:#0a0e10;--bg-soft:#0f1517;--surface:#11181b;--surface-2:#151e21;--surface-3:#1b262a;
+    --panel:var(--surface-2);--line:#29363b;--line-strong:#3c4b51;--fg:#edf3f4;--dim:#8a9ba1;
+    --faint:#5d6b70;--ok:#74e6a3;--warn:#e4b95f;--err:#ef8e71;--acc:#73d7e8;--accent:#42da91;
+    --shadow:0 18px 55px rgba(0,0,0,.24);--glass:rgba(10,14,16,.84);--grid:rgba(115,215,232,.035);
+    --button:#172125;--button-hover:#202d31;--input:#0e1518;--ring:rgba(115,215,232,.28);
+  }
+  html[data-theme="light"]{
+    --bg:#e8ecea;--bg-soft:#eef1ef;--surface:#f7f9f8;--surface-2:#ffffff;--surface-3:#edf2ef;
+    --panel:var(--surface-2);--line:#cbd4d0;--line-strong:#aebbb5;--fg:#172124;--dim:#64747a;
+    --faint:#8b9995;--ok:#087c4e;--warn:#8b6314;--err:#b1432f;--acc:#087f96;--accent:#087f58;
+    --shadow:0 18px 48px rgba(34,55,48,.12);--glass:rgba(247,249,248,.88);--grid:rgba(8,127,150,.055);
+    --button:#f4f7f5;--button-hover:#e7eeea;--input:#ffffff;--ring:rgba(8,127,150,.18);
+  }
+  *{box-sizing:border-box;scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent}
+  *::selection{background:rgba(66,218,145,.24)}
+  ::-webkit-scrollbar{width:7px;height:7px}
+  ::-webkit-scrollbar-thumb{background:var(--line-strong);border-radius:9px}
+  ::-webkit-scrollbar-track{background:transparent}
+  html,body{height:100%;overflow:hidden}
+  body{margin:0;background:
+    linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px),
+    radial-gradient(circle at 18% -8%,rgba(66,218,145,.08),transparent 28%),var(--bg);
+    background-size:28px 28px,28px 28px,auto,auto;color:var(--fg);
+    font:12px/1.45 "Avenir Next","DIN Alternate","PingFang SC",sans-serif;letter-spacing:.005em}
+  button,select,input{font:inherit}
+  button,select,input[type=text]{min-height:29px}
+  button{background:var(--button);color:var(--fg);border:1px solid var(--line);border-radius:7px;
+    padding:4px 10px;cursor:pointer;transition:border-color .16s,background .16s,transform .16s,box-shadow .16s}
+  button:hover{background:var(--button-hover);border-color:var(--line-strong)}
+  button:active{transform:translateY(1px)}
+  button:disabled{opacity:.38;cursor:default;transform:none}
+  button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+  select,input[type=text]{background:var(--input);color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:4px 8px}
+  input[type=text]{min-width:0;flex:1 1 100px}
+  input[type=checkbox],input[type=range]{accent-color:var(--accent)}
+  code,kbd,.mono,.pill,.stage-version,.stage-meta,#meta,.source-badge,.runtime-pick,.pane{
+    font-family:"SFMono-Regular","Cascadia Code",Menlo,monospace}
+  [hidden]{display:none !important}
+  .app-shell{height:100%;display:grid;grid-template-rows:54px minmax(0,1fr)}
+  #topbar{position:relative;z-index:20;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;
+    gap:18px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--glass);backdrop-filter:blur(18px)}
+  .brand{display:flex;align-items:center;gap:10px;min-width:180px}
+  .brand-mark{width:30px;height:30px;border:1px solid var(--accent);border-radius:9px;display:grid;place-items:center;
+    color:var(--accent);font:700 10px/1 "SFMono-Regular",monospace;box-shadow:inset 0 0 18px rgba(66,218,145,.08)}
+  .brand-copy{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+  .brand-copy strong{font-size:15px;letter-spacing:.08em}
+  .brand-copy span{color:var(--dim);font:10px/1 "SFMono-Regular",monospace;letter-spacing:.06em;text-transform:uppercase}
+  .top-status{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0}
+  #meta{color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .top-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .icon-button{min-width:34px;padding-inline:8px}
+  .icon-button .button-label{margin-left:5px}
+  #workspace{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) clamp(330px,24vw,430px)}
+  body.inspector-collapsed #workspace{grid-template-columns:minmax(0,1fr)}
+  body.inspector-collapsed #right{display:none}
+  #left{min-width:0;min-height:0;padding:9px;display:grid;grid-template-rows:auto auto minmax(178px,1fr);gap:8px;overflow:hidden}
+  .surface{border:1px solid var(--line);border-radius:11px;background:var(--surface);box-shadow:0 1px 0 rgba(255,255,255,.025);min-width:0}
+  .preview-panel{min-height:0;overflow:hidden;display:grid;grid-template-rows:40px minmax(0,1fr) 38px}
+  .panel-head,.preview-toolbar,.control-head,.inspector-head{display:flex;align-items:center;gap:8px}
+  .panel-head{padding:6px 9px;border-bottom:1px solid var(--line);justify-content:space-between;background:var(--surface-2)}
+  .section-label{display:flex;align-items:center;gap:9px;min-width:0}
+  .section-index{color:var(--accent);font:700 10px/1 "SFMono-Regular",monospace;letter-spacing:.12em}
+  .section-label h2{margin:0;font-size:12px;letter-spacing:.045em;font-weight:700}
+  .section-label small{color:var(--dim);font-size:10px;white-space:nowrap}
+  .preview-actions{display:flex;align-items:center;gap:5px;flex-wrap:nowrap}
+  .preview-actions button{white-space:nowrap}
+  #stages{display:flex;gap:10px;align-items:flex-start;justify-content:center;overflow:auto;padding:7px 8px 4px;min-height:0}
+  .stage{display:flex;flex-direction:column;gap:4px;flex:1 1 300px;min-width:260px;max-width:480px}
+  .stage-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:10px;min-height:16px}
+  .stage-title{color:var(--fg);font-weight:700;letter-spacing:.025em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stage-version{color:var(--acc);white-space:nowrap;font-size:10px}
+  .stage-status{color:var(--dim)}
+  .stage-status.err{color:var(--err)}
+  .optical-stage{position:relative;width:100%;height:auto;aspect-ratio:480/352;overflow:hidden;border:1px solid var(--line-strong);
+    border-radius:8px;background:#000;box-sizing:border-box;isolation:isolate;box-shadow:0 9px 28px rgba(0,0,0,.18)}
+  #stages:has(.preview-optical) .stage{flex:0 1 min(360px,36vh);min-width:min(240px,100%);max-width:min(360px,36vh)}
+  .optical-stage.preview-optical{aspect-ratio:3/4}
+  .optical-stage [data-runtime-canvas]{position:relative;z-index:1;display:block;width:100%!important;height:100%!important;background:#000;border:0}
+  .optical-stage.preview-optical [data-runtime-canvas]{position:absolute;left:0;top:22.5%;width:100%!important;height:55%!important;opacity:0}
+  .optical-stage .preview-composite{position:absolute;inset:0;width:100%;height:100%;display:none;pointer-events:none}
+  .optical-stage.preview-optical .preview-composite{display:block}
+  .stage-meta{color:var(--dim);font-size:9.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .preview-toolbar{padding:4px 9px;border-top:1px solid var(--line);background:var(--surface-2);min-width:0;overflow-x:auto;white-space:nowrap}
+  .toolbar-group{display:flex;align-items:center;gap:5px}
+  .toolbar-label{color:var(--faint);font-size:9px;letter-spacing:.08em;text-transform:uppercase}
+  .bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0}
+  .sep{width:1px;height:16px;background:var(--line);font-size:0;flex:0 0 auto}
+  label.chk{display:inline-flex;gap:5px;align-items:center;color:var(--dim);cursor:pointer;white-space:nowrap}
+  .pill{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:999px;padding:1px 7px;color:var(--dim);font-size:9.5px;white-space:nowrap;background:var(--surface)}
+  .pill.recording{color:var(--err);border-color:color-mix(in srgb,var(--err) 48%,var(--line));box-shadow:0 0 0 3px color-mix(in srgb,var(--err) 10%,transparent)}
+  .run-strip{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;min-width:0}
+  .runtime-block,.scenario-block{padding:8px 10px;display:flex;flex-direction:column;justify-content:center;gap:5px;overflow:hidden}
+  .strip-row{display:flex;align-items:center;gap:8px;min-width:0}
+  .strip-title{color:var(--acc);font-size:10px;font-weight:700;letter-spacing:.08em;white-space:nowrap}
+  .runtime-picks{display:flex;gap:5px;align-items:center;min-width:0;overflow-x:auto;padding-bottom:1px}
+  .runtime-pick{display:inline-flex;gap:5px;align-items:center;padding:3px 7px;border:1px solid var(--line);border-radius:7px;
+    color:var(--dim);background:var(--button);cursor:pointer;white-space:nowrap;font-size:9.5px}
+  .runtime-pick:has(input:checked){color:var(--fg);border-color:var(--acc);box-shadow:inset 0 -2px 0 color-mix(in srgb,var(--acc) 55%,transparent)}
+  .runtime-pick.unavailable{opacity:.42;text-decoration:line-through;cursor:not-allowed}
+  .source-badge{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dim);border-left:2px solid var(--acc);padding-left:7px;font-size:9.5px}
+  .source-badge strong{color:var(--fg)}
+  .hint{color:var(--dim);font-size:10px;line-height:1.4}
+  .run-strip .hint{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .scenario-block .strip-row{flex-wrap:nowrap}
+  .scenario-block button,.scenario-block label{white-space:nowrap;flex:0 0 auto}
+  #scenario-pick{min-width:130px;max-width:none;flex:1 1 170px}
+  #scenario-state{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #control-deck{min-height:0;display:grid;grid-template-rows:40px minmax(0,1fr);overflow:hidden}
+  .control-head{padding:6px 9px;border-bottom:1px solid var(--line);justify-content:space-between;background:var(--surface-2)}
+  .control-nav{display:flex;align-items:center;gap:4px;min-width:0}
+  .control-tab{min-height:27px;padding:3px 10px;border-color:transparent;background:transparent;color:var(--dim)}
+  .control-tab.on{color:var(--fg);border-color:var(--line);background:var(--surface-3);box-shadow:inset 0 -2px 0 var(--accent)}
+  .grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;padding:7px;overflow:auto;align-content:start}
+  .control-card{display:none}
+  .grid2[data-group="interaction"] .control-card[data-control-group~="interaction"],
+  .grid2[data-group="devices"] .control-card[data-control-group~="devices"],
+  .grid2[data-group="sensors"] .control-card[data-control-group~="sensors"],
+  .grid2[data-group="all"] .control-card{display:flex}
+  .card{border:1px solid var(--line);border-radius:9px;padding:7px 9px;flex-direction:column;gap:5px;background:var(--surface-2);min-width:0}
+  .card-wide{grid-column:1 / -1}
+  .card h3{margin:0;font-size:10.5px;font-weight:700;color:var(--acc);letter-spacing:.055em}
+  .ble-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+  .ble-fields .bar:last-child{grid-column:1 / -1}
+  .control-grid .hint{display:none;border-top:1px dashed var(--line);padding-top:5px}
+  body.show-hints .control-grid .hint{display:block}
+  #right{min-width:0;min-height:0;border-left:1px solid var(--line);background:var(--surface);display:grid;grid-template-rows:40px auto 42px minmax(0,1fr);box-shadow:var(--shadow)}
+  .inspector-head{padding:6px 10px;justify-content:space-between;border-bottom:1px solid var(--line);background:var(--surface-2)}
+  .inspector-head strong{font-size:11px;letter-spacing:.08em}
+  .inspector-head span{color:var(--dim);font:9px/1 "SFMono-Regular",monospace}
+  #tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;padding:6px;border-bottom:1px solid var(--line)}
+  .tab{padding:5px 4px;border:1px solid transparent;border-radius:6px;color:var(--dim);cursor:pointer;text-align:center;font-size:10px;transition:.16s}
+  .tab:hover{color:var(--fg);background:var(--surface-3)}
+  .tab.on{background:var(--surface-3);border-color:var(--line);color:var(--fg);box-shadow:inset 0 -2px 0 var(--acc)}
+  .inspector-toolbar{display:flex;gap:6px;align-items:center;padding:6px;border-bottom:1px solid var(--line)}
+  .inspector-toolbar input{width:100%;min-width:0}
+  .pane{min-height:0;overflow:auto;padding:9px 11px;display:none;white-space:pre-wrap;word-break:break-word;font-size:10.5px;line-height:1.52}
+  .pane.on{display:block}
+  .ok{color:var(--ok)}.warn{color:var(--warn)}.err{color:var(--err)}.acc{color:var(--acc)}.dim{color:var(--dim)}
+  .row{padding:2px 0}
+  kbd{background:var(--surface-3);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+  #scenario-out{font-size:10.5px}
+  #scenario-shots{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  #scenario-shots img{width:128px;max-width:100%;border:1px solid var(--line);border-radius:7px;cursor:zoom-in}
+  #scenario-shots img.zoom{width:100%;cursor:zoom-out}
+  #scenario-recordings{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .recording-card{border:1px solid var(--line);border-radius:8px;padding:7px;background:var(--surface-2)}
+  .recording-card video{display:block;width:100%;max-height:230px;background:#000;border-radius:6px;margin-bottom:6px}
+  .recording-meta{display:flex;gap:7px;align-items:center;flex-wrap:wrap;color:var(--dim);font-size:10px}
+  .recording-download{color:var(--acc);text-decoration:none;border:1px solid var(--line);border-radius:5px;padding:2px 7px}
+  .recording-download:hover{border-color:var(--acc)}
+  .inspect-row{border-bottom:1px solid var(--line);padding:6px 0}
+  .inspect-row summary{cursor:pointer;color:var(--fg)}
+  .inspect-row pre{margin:5px 0 0;color:var(--dim);white-space:pre-wrap;font:10px/1.5 "SFMono-Regular",monospace}
+  .evidence-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .matrix-strip{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;color:var(--dim)}
+  .matrix-strip strong{color:var(--fg);font-weight:600}
+  @media(max-height:850px){
+    .app-shell{grid-template-rows:48px minmax(0,1fr)}
+    #topbar{padding-inline:10px}.brand-mark{width:28px;height:28px}
+    .stage{max-width:400px}.stage-meta{display:none}.preview-panel{grid-template-rows:36px minmax(0,1fr) 36px}
+    .panel-head,.control-head{padding-block:4px}.run-strip .hint{display:none}
+    #left{grid-template-rows:auto auto minmax(155px,1fr);gap:6px;padding:6px}
+  }
+  @media(max-width:1260px){
+    #workspace{grid-template-columns:minmax(0,1fr)}
+    #right{position:fixed;z-index:30;right:0;top:54px;bottom:0;width:min(430px,92vw);border-top:1px solid var(--line)}
+    body.inspector-collapsed #right{display:none}
+    .run-strip{grid-template-columns:1fr}.runtime-block,.scenario-block{padding-block:6px}
+    .brand-copy span{display:none}
+  }
+  @media(max-width:760px){
+    html,body{overflow:auto;height:auto;min-height:100%}.app-shell{min-height:100vh;height:auto}
+    #workspace{min-height:0}.top-status{display:none}.brand{min-width:0}.icon-button .button-label{display:none}
+    #left{overflow:visible;display:flex;flex-direction:column}.preview-panel{overflow:visible}
+    #stages{justify-content:flex-start}.stage{min-width:min(88vw,420px)}
+    .run-strip{display:flex;flex-direction:column}.grid2{grid-template-columns:1fr}.card-wide{grid-column:auto}
+    .ble-fields{grid-template-columns:1fr}.ble-fields .bar:last-child{grid-column:auto}
+    .control-nav{overflow-x:auto}.section-label small{display:none}
+  }
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <header id="topbar">
+      <div class="brand">
+        <div class="brand-mark">IL</div>
+        <div class="brand-copy"><strong>InkLab</strong><span>AIUI runtime workbench</span></div>
+      </div>
+      <div class="top-status">
+        <span id="meta">启动中…</span>
+        <span id="watch-state" class="pill">watch …</span>
+      </div>
+      <div class="top-actions">
+        <a href="/device" style="color:var(--accent);white-space:nowrap;text-decoration:none">USB 真机</a>
+        <label class="chk" title="源码一改就自动重跑装载（服务端 fs.watch + SSE，已去抖）">
+          <input type="checkbox" id="autoreload" checked> 热重载
+        </label>
+        <button id="theme-toggle" class="icon-button" title="切换浅色/暗色界面" aria-label="切换浅色/暗色界面">◐<span class="button-label">浅色</span></button>
+        <button id="inspector-toggle" class="icon-button" title="收起或展开 Inspector" aria-expanded="true">◧<span class="button-label">Inspector</span></button>
+      </div>
+    </header>
+
+    <div id="workspace">
+      <main id="left">
+        <section class="surface preview-panel">
+          <div class="panel-head">
+            <div class="section-label">
+              <span class="section-index">01</span>
+              <h2>运行预览</h2>
+              <small>480×352 / AR 480×640 · isolated lanes</small>
+            </div>
+            <div class="preview-actions">
+              <button id="reload" title="重新拉源码并重启引擎">重载</button>
+              <button id="wake" title="等价于 Craft 的麦克风圆圈">语音唤醒</button>
+              <button id="shot" title="按当前预览口径导出全部运行时 lane">截图矩阵</button>
+              <button id="record" title="录制当前预览：效果预览输出横屏画布，真机模拟输出完整 3:4 AR 竖帧">开始录制</button>
+              <span id="record-state" class="pill">MP4 · PPT</span>
+            </div>
+          </div>
+          <div id="stages"><div class="dim">正在准备运行时 lane…</div></div>
+          <div class="preview-toolbar">
+            <div class="toolbar-group">
+              <span class="toolbar-label">预览</span>
+              <select id="preview-mode" title="效果预览是 480×352 黑底；真机模拟是 Studio 同类 480×640 环境 AR 竖帧">
+                <option value="studio">效果预览 · 黑底</option>
+                <option value="optical">真机模拟 · 竖屏</option>
+              </select>
+            </div>
+            <span class="sep">│</span>
+            <div class="toolbar-group">
+              <span class="toolbar-label">环境</span>
+              <select id="lighting-profile" title="仅在光照可读性模拟中生效，不等价于真实光学验收" disabled>
+                <option value="absolute-dark">绝对黑暗</option>
+                <option value="indoor-bright">室内明亮</option>
+                <option value="night-low-light">夜晚弱光</option>
+              </select>
+              <span id="lighting-state" class="pill">效果预览 · 480×352</span>
+            </div>
+            <span class="sep">│</span>
+            <label class="chk" title="键盘、唤醒和场景输入同时发给全部选中运行时">
+              <input type="checkbox" id="mirror" checked> 镜像输入
+            </label>
+          </div>
+        </section>
+
+        <section class="run-strip">
+          <div class="surface runtime-block">
+            <div class="strip-row">
+        <span class="strip-title">RUNTIME</span>
+        <span id="runtime-picks" class="runtime-picks"><span class="dim">读取 lock…</span></span>
+            </div>
+            <span id="source-badge" class="source-badge dim">读取工程身份…</span>
+          </div>
+
+          <div class="surface scenario-block">
+            <div class="strip-row">
+        <span class="strip-title">SCENARIO</span>
+        <select id="scenario-pick"></select>
+        <button id="scenario-run">跑场景</button>
+        <label class="chk" title="从场景第一步前开始录主舞台，结束后自动下载视频；截图步骤仍照常保留">
+          <input type="checkbox" id="scenario-record"> 同步录屏
+        </label>
+        <button id="scenario-clear">清空</button>
+        <span id="scenario-state" class="dim"></span>
+            </div>
+            <div class="hint" id="scenario-desc"></div>
+          </div>
+        </section>
+
+        <section id="control-deck" class="surface">
+          <div class="control-head">
+            <div class="section-label">
+              <span class="section-index">02</span>
+              <h2>能力控制</h2>
+              <small>host capability lab</small>
+            </div>
+            <div class="control-nav" id="control-tabs" role="tablist" aria-label="能力控制分组">
+              <button class="control-tab on" data-control-target="interaction" role="tab" aria-selected="true">交互</button>
+              <button class="control-tab" data-control-target="devices" role="tab" aria-selected="false">设备</button>
+              <button class="control-tab" data-control-target="sensors" role="tab" aria-selected="false">传感</button>
+              <button class="control-tab" data-control-target="all" role="tab" aria-selected="false">全部</button>
+              <button id="hints-toggle" class="control-tab" title="显示或隐藏详细说明" aria-pressed="false">说明</button>
+            </div>
+          </div>
+    <div class="grid2 control-grid" id="control-grid" data-group="interaction">
+      <div class="card control-card card-wide" data-control-group="devices">
+        <h3>相机来源</h3>
+        <div class="bar">
+          <select id="camera-mode">
+            <option value="mock">模拟图片（E2E）</option>
+            <option value="computer">电脑摄像头（手动）</option>
+          </select>
+          <button id="camera-authorize" disabled>授权 / 重试</button>
+          <span id="camera-state" class="pill">mock</span>
+        </div>
+        <div class="hint">切到电脑摄像头会立即申请浏览器权限，但不读取或保存照片；拒绝后可点「授权 / 重试」。
+          真正取景只发生在应用由你的按键/点击交互调用 <code>takePhoto</code> 时。命令行 E2E 始终固定为模拟图片。</div>
+      </div>
+
+      <div class="card control-card card-wide" data-control-group="devices">
+        <h3>蓝牙来源</h3>
+        <div class="bar">
+          <select id="bluetooth-mode">
+            <option value="mock">模拟蓝牙（E2E）</option>
+            <option value="computer">电脑蓝牙（手动）</option>
+          </select>
+          <button id="bluetooth-authorize">选择真实设备</button>
+          <button id="bluetooth-power">设为不可用</button>
+          <button id="bluetooth-disconnect">断开</button>
+          <button id="bluetooth-log">看调用</button>
+          <span id="bluetooth-state" class="pill">mock</span>
+        </div>
+        <div class="ble-fields">
+          <div class="bar">
+            <input type="text" id="bluetooth-service" value="0000180d-0000-1000-8000-00805f9b34fb"
+              aria-label="BLE Service UUID" title="Service UUID">
+          </div>
+          <div class="bar">
+            <input type="text" id="bluetooth-characteristic" value="00002a37-0000-1000-8000-00805f9b34fb"
+              aria-label="BLE Characteristic UUID" title="Characteristic UUID">
+          </div>
+          <div class="bar">
+            <input type="text" id="bluetooth-bytes" value="00 58" aria-label="BLE notification bytes"
+              placeholder="十六进制，例如 00 58">
+            <button id="bluetooth-notify">发通知</button>
+          </div>
+        </div>
+        <div class="bar">
+          <button id="bluetooth-trace-open" title="导入十六进制帧数组或带 serviceUuid/characteristicUuid/frames 的 JSON">导入通知 trace</button>
+          <input id="bluetooth-trace-file" type="file" accept=".json,application/json" hidden>
+          <label class="chk" title="文件未声明 loop 时使用此值">
+            <input type="checkbox" id="bluetooth-trace-loop"> 循环
+          </label>
+          <button id="bluetooth-trace-stop">停止 trace</button>
+          <span id="bluetooth-trace-state" class="pill">idle</span>
+        </div>
+        <div class="hint">模拟模式内置一个心率设备；应用先扫描、连接并订阅后，才能发通知。
+          业务设备可用 <code>__inklab.bluetooth.replaceDevices(...)</code> 配置；通知 trace 可直接导入
+          十六进制帧，并显示已发送帧数、循环次数与失败状态。电脑模式先由应用发起搜索；若引擎桥跨过了浏览器的
+          用户手势窗口，“选择真实设备”会使用同一组服务过滤条件打开系统选择器，并让原扫描继续。
+          命令行 E2E 始终固定为模拟蓝牙。</div>
+      </div>
+
+      <div class="card control-card card-wide" data-control-group="interaction">
+        <h3>ASR 注入 <span class="dim">· 假装用户在说话</span></h3>
+        <div class="bar">
+          <input type="text" id="asr-text" value="我想增肌" placeholder="用户「说」的内容">
+          <button id="asr-say" title="模拟用户把这句话说完：引擎收到最终转写，应用会按这句话执行">说完一句（final）</button>
+          <button id="asr-interim" title="模拟话说到一半：临时转写通常只上屏字幕，应用不该拿它执行">说话中（interim）</button>
+        </div>
+        <div class="bar">
+          <button id="asr-endturn" title="这一轮说完了，识别器自然收尾（完整尾巴 + end）。continuous:false 的应用只在 end 里落定转写，缺这一拍就永远不执行">本轮收尾（end）</button>
+          <button id="asr-nomatch" title="听到了声音但识别不出内容（含糊/噪音），测「请再说一遍」这类兜底">没听清（nomatch）</button>
+          <button id="asr-error" title="开了麦却一直没人说话，识别超时报错，测静默场景的兜底">没人说话（no-speech）</button>
+          <button id="asr-abort" title="识别中途被系统掐断——真机会随机这样，测应用的收口逻辑">识别被掐断（abort）</button>
+          <span id="asr-state" class="pill">idle</span>
+        </div>
+        <div class="hint">先点「语音唤醒」开麦（pill 变 listening）再注入，没开麦会报错。上排正常转写，下排三种「没听成」。</div>
+      </div>
+
+      <div class="card control-card" data-control-group="interaction">
+        <h3>网络</h3>
+        <div class="bar">
+          <button id="net-off">断网</button>
+          <button id="net-on">恢复</button>
+          <button id="net-log">看请求日志</button>
+          <span id="net-state" class="pill">online</span>
+          <label class="chk" title="不同源的请求一律回 503 且不真的出去（日志里记 external-stub）。关掉才会真的打到线上后端。">
+            <input type="checkbox" id="net-guard" checked> 挡外域
+          </label>
+        </div>
+        <div class="hint">断网 = 拦截器 block + 连通性事件 offline；宿主自己取源码的那条 fetch 不受影响。
+          「挡外域」默认开：应用里硬编码的线上域名（启动预取这类）会在你按任何按钮之前就打出去，
+          默认挡下既是隐私边界也是跑测的稳定前提；要放行单个域名用 <code>__inklab.caps.net.allowExternal('域名')</code>。</div>
+      </div>
+
+      <div class="card control-card card-wide" data-control-group="sensors">
+        <h3>传感器 / IMU</h3>
+        <div class="bar">
+          <select id="sensor-pick">
+            <option value="accelerometer">accelerometer</option>
+            <option value="gyroscope">gyroscope</option>
+            <option value="magnetometer">magnetometer</option>
+            <option value="absoluteOrientation">absoluteOrientation</option>
+          </select>
+          <select id="sensor-fault">
+            <option value="NotReadableError">NotReadableError（读不出）</option>
+            <option value="NotAllowedError">NotAllowedError（拒权）</option>
+            <option value="SecurityError">SecurityError</option>
+          </select>
+        </div>
+        <div class="bar">
+          <button id="sensor-trace-squat" title="装入 3 秒静止 + 6 次周期运动的 60Hz 合成加速度波形">深蹲 trace ×6</button>
+          <button id="sensor-head-nod" title="向正在运行的 absoluteOrientation 会话注入合成点头四元数">点头 nod</button>
+          <button id="sensor-head-shake" title="向正在运行的 absoluteOrientation 会话注入合成摇头四元数">摇头 shake</button>
+          <button id="sensor-trace-open" title="导入样本数组或 {sensor, speed, samples} JSON">导入 JSON</button>
+          <input id="sensor-trace-file" type="file" accept=".json,application/json" hidden>
+          <label class="chk" title="trace 放完后按最后一个真实采样间隔接回开头">
+            <input type="checkbox" id="sensor-trace-loop"> 循环
+          </label>
+          <button id="sensor-trace-clear">回到静置</button>
+          <span id="sensor-trace-state" class="pill">baseline</span>
+        </div>
+        <div class="bar">
+          <button id="sensor-inject">立刻故障</button>
+          <button id="sensor-inject-after">发 20 条后故障</button>
+          <button id="sensor-clear">清除故障</button>
+          <button id="sensor-state">看活动会话</button>
+        </div>
+        <div class="hint">trace 在下一次传感器 start 时生效；JSON 可直接写样本数组，或写
+          <code>{sensor, speed, samples}</code>。深蹲示例只验证流程/算法，不冒充真机信号。
+          腕表 IMU 仍走上方模拟蓝牙的 <code>playNotificationTrace</code>。故障是粘的，需手动清除。</div>
+      </div>
+
+      <div class="card control-card" data-control-group="sensors">
+        <h3>电池状态 <span class="dim">· AIUI 0.17</span></h3>
+        <div class="bar">
+          <label class="chk">电量 <input id="battery-level" type="range" min="0" max="100" value="82"></label>
+          <span id="battery-level-text" class="pill">82%</span>
+          <label class="chk"><input id="battery-charging" type="checkbox" checked> 充电中</label>
+        </div>
+        <div class="bar">
+          <button id="battery-apply">注入当前状态</button>
+          <button id="battery-low">低电量 12%</button>
+          <button id="battery-full">充满 100%</button>
+          <span id="battery-state" class="pill">等待应用订阅</span>
+        </div>
+        <div class="hint">0.17 lane 会由引擎映射为 BatteryManager 的四类 change 事件；旧版没有
+          <code>navigator.getBattery</code> 时应显示 unsupported，而不是由 InkLab 伪造成功。</div>
+      </div>
+
+      <div class="card control-card" data-control-group="interaction">
+        <h3>InkView 焦点 / 播报</h3>
+        <div class="bar">
+          <button id="view-focus">focus()</button>
+          <button id="view-blur">blur()</button>
+          <button id="tts-list">看播报</button>
+          <span id="focus-hint" class="pill">focused（默认）</span>
+        </div>
+        <div class="hint" title="引擎的报错原文：SpeechRecognition.start() is unavailable while InkView is blurred">blurred
+        时引擎会拒掉 ASR。宿主不开 syncFocus，DOM 焦点跳动不会误伤——要测 blurred 就点这两个钮。</div>
+      </div>
+    </div>
+        </section>
+
+      </main>
+
+  <aside id="right" aria-label="Inspector">
+    <div class="inspector-head">
+      <strong>INSPECTOR</strong>
+      <span>runtime evidence</span>
+    </div>
+    <div id="tabs">
+      <div class="tab on" data-pane="boot">启动</div>
+      <div class="tab" data-pane="log">引擎日志</div>
+      <div class="tab" data-pane="network">网络</div>
+      <div class="tab" data-pane="caps">能力调用</div>
+      <div class="tab" data-pane="scenario">场景结果</div>
+      <div class="tab" data-pane="files">工程</div>
+      <div class="tab" data-pane="evidence">证据</div>
+    </div>
+    <div class="inspector-toolbar">
+      <input type="text" id="inspector-filter" placeholder="筛选当前 Inspector…" aria-label="筛选 Inspector">
+      <button id="inspector-refresh">刷新</button>
+    </div>
+    <div class="pane on" id="pane-boot"></div>
+    <div class="pane" id="pane-log"></div>
+    <div class="pane" id="pane-network"><span class="dim">暂无网络记录。</span></div>
+    <div class="pane" id="pane-caps"><span class="dim">暂无能力调用。</span></div>
+    <div class="pane" id="pane-scenario">
+      <div id="scenario-out" class="dim">还没跑过。</div>
+      <div id="scenario-shots"></div>
+      <div id="scenario-recordings"></div>
+    </div>
+    <div class="pane" id="pane-files"></div>
+    <div class="pane" id="pane-evidence">
+      <div class="evidence-actions">
+        <button id="evidence-export">导出 run.json</button>
+        <button id="evidence-clear">清空时间线</button>
+        <span id="evidence-state" class="pill">0 events</span>
+      </div>
+      <div id="evidence-summary" class="matrix-strip"></div>
+      <div id="evidence-events"></div>
+    </div>
+  </aside>
+    </div>
+  </div>
+  <script type="module" src="/host/inklab.js"></script>
+</body>
+</html>

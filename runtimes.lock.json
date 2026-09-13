@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "note": "运行时二进制不入库；每条 lane 锁定来源、版本与哈希。用 node tools/inklab/fetch-engine.mjs --matrix 拉取。",
+  "default": "inklab-legacy",
+  "runtimes": [
+    {
+      "id": "inklab-legacy",
+      "label": "InkLab 旧基线",
+      "channel": "pinned",
+      "cacheDir": ".",
+      "cacheOnly": true,
+      "source": "https://js.rokid.com/craft",
+      "fetchedAt": "2026-08-25",
+      "engineVersion": "0.17.0",
+      "engineBuild": "0.17.0-daily.202608180107",
+      "glueUrl": "https://js.rokid.com/assets/index-D_EpyLZO.js",
+      "glueSha256": "48fe39eba0cbc9b339a8161808c84e81523dd700508b381cd0ffb0f2334f80b2",
+      "wasmUrl": "https://js.rokid.com/assets/ink_web_bg-Cv9NP4M6.wasm",
+      "wasmSha256": "a08b26b9514ad082f36941b4d1fd057e6009a341179bfa49d28e0ede9f7187f1"
+    },
+    {
+      "id": "studio-stable",
+      "label": "Studio 稳定版",
+      "channel": "stable",
+      "cacheDir": "runtimes/studio-stable",
+      "source": "https://aiui.rokid.com/ 1.1.0 / CDN 1.0.81",
+      "fetchedAt": "2026-09-03",
+      "engineVersion": "0.16.1",
+      "engineBuild": null,
+      "glueUrl": "https://static.rokidcdn.com/prod/rokid-aiuistudio/1.0.81/assets/index-QhkJXYE0.js",
+      "glueSha256": "ad158928815002532fdcafdddbdb18ff15ec9331bbe285f1d081b2843abfbb51",
+      "wasmUrl": "https://static.rokidcdn.com/prod/rokid-aiuistudio/1.0.81/assets/ink_web_bg-CNtCLz5t.wasm",
+      "wasmSha256": "ef249eaf4c4fc8e8f1894f2d220072c05e34230e953e32c4f3133a76b07611e7"
+    },
+    {
+      "id": "studio-canary",
+      "label": "Studio 尝鲜版",
+      "channel": "daily",
+      "cacheDir": "runtimes/studio-canary",
+      "source": "https://aiui.rokid.com/ 1.1.0 / CDN 1.0.81",
+      "fetchedAt": "2026-09-03",
+      "engineVersion": "0.17.0",
+      "engineBuild": "0.17.0-daily.202608251310",
+      "glueUrl": "https://static.rokidcdn.com/prod/rokid-aiuistudio/1.0.81/assets/index-DRb8dqx7.js",
+      "glueSha256": "2bcbf4c3e733193ceaa1cf938bb1d9ba27c67523fd759909944ea98c0a3f6b95",
+      "wasmUrl": "https://static.rokidcdn.com/prod/rokid-aiuistudio/1.0.81/assets/ink_web_bg-lysneQqg.wasm",
+      "wasmSha256": "59fb0abb545a6c6733316490f4294f8cb9747f77b7e7788c0eac553b317eccd9"
+    }
+  ]
+}

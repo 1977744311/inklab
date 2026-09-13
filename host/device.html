@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>InkLab · USB 真机</title>
+  <link rel="stylesheet" href="/host/device.css">
+</head>
+<body>
+  <header><a class="brand" href="/">IL <b>InkLab</b></a><nav><a href="/">模拟器</a><span aria-current="page">USB 真机</span></nav><span id="connection" class="pill">读取设备…</span></header>
+  <main>
+    <section class="device-screen" aria-label="真实眼镜屏幕">
+      <div class="section-heading"><h1>真实眼镜</h1><button id="mirror-toggle" class="primary">开始实时投屏</button></div>
+      <div class="row preview-tabs"><button id="mirror-show" disabled>实时视频</button><button id="evidence-show" disabled>原图证据</button><button id="mirror-record" disabled>录制视频</button><button id="capture">截取原图</button></div>
+      <p id="mirror-stats" class="muted small" role="status">投屏未开启 · 原始截图与视频预览分别保存</p>
+      <div class="frame"><canvas id="mirror-canvas" width="480" height="640" hidden aria-label="真实眼镜实时视频"></canvas><img id="screen" alt="尚未截取眼镜画面"><p id="empty">接上眼镜，在眼镜内打开一次 AIUI 应用。<br>选择设备后即可从电脑操作。</p></div>
+      <div class="caption"><span id="frame-meta">ADB 原图 · 不合成环境，不裁切</span><a id="download-image" hidden download="glasses-raw.png">下载原图</a></div>
+      <div class="caption"><a id="mirror-recording" hidden>下载投屏录像</a><span id="recording-note"></span></div>
+      <details><summary>截图识别文字</summary><pre id="ocr">尚无文字识别结果。</pre></details>
+      <p class="muted small">实时视频来自眼镜 H.264，经本机解码显示；帧率按实际收到的帧计算。显示的延迟只覆盖本机解码到浏览器绘制，端到端延迟未测量。投屏期间临时唤醒，停止后恢复自然休眠。</p>
+    </section>
+    <section class="workspace">
+      <div class="section-heading"><h2>连接与操作</h2><button id="refresh">刷新设备</button></div>
+      <p class="muted">保持 USB 和手机 Rokid App 连接，手动打开一次 AIUI 沉浸页。首次下载安装仍通过 Studio / 手机。</p>
+      <div class="row"><select id="device-select" aria-label="目标眼镜"></select><button id="connect">选择设备</button></div>
+      <p id="device-note" role="status" class="notice"></p>
+      <div class="controls">
+        <div class="keypad" aria-label="眼镜按键">
+          <button data-key="up" aria-label="向上">↑</button>
+          <button data-key="left" aria-label="向左">←</button><button data-key="enter">确认</button><button data-key="right" aria-label="向右">→</button>
+          <button data-key="down" aria-label="向下">↓</button>
+          <button data-key="back" class="back">返回</button>
+        </div>
+        <div class="speech">
+          <label for="speech">模拟识别文字</label>
+          <textarea id="speech" rows="2" placeholder="今天练了几组了"></textarea>
+          <div class="row"><button id="say" class="primary">发送文字并取图</button><button id="wake">真实长按唤醒</button></div>
+          <p class="muted small">文字直接进入应用助手，验证识别后的逻辑。真实长按会打开麦克风；场景可接着发送文字，步骤串行执行。</p>
+        </div>
+      </div>
+      <div class="section-heading"><h2>场景测试</h2><span id="run-state" class="pill">未运行</span></div>
+      <div class="row"><select id="scenario-select" aria-label="真机场景"></select><button id="run" class="primary">运行场景</button><button id="stop" disabled>停止</button></div>
+      <p id="scenario-description" class="muted"></p>
+      <div id="steps" aria-live="polite"></div>
+      <div class="row"><button id="export" disabled>导出 run.json</button><span id="report-location" class="muted small"></span></div>
+      <div class="shots" id="shots"></div>
+      <details><summary>场景与能力支持范围</summary><div id="coverage"></div></details>
+      <p class="muted small">按键发送和取图完成不会自动记为业务通过。通过项必须有本机 OCR 从真实截图读到的文案；原图与识别结果一起保存，仍需核验关键画面。</p>
+    </section>
+  </main>
+  <script type="module" src="/host/device.js"></script>
+</body>
+</html>

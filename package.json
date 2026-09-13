@@ -1,0 +1,40 @@
+{
+  "name": "@aiui/inklab",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone AIUI source and AIX workbench, deterministic capability harness and device runner.",
+  "engines": {
+    "node": ">=22"
+  },
+  "exports": {
+    "./lib/*": "./lib/*",
+    "./e2e": "./e2e.mjs"
+  },
+  "bin": {
+    "inklab": "serve.mjs",
+    "inklab-e2e": "e2e.mjs",
+    "inklab-engine": "fetch-engine.mjs",
+    "inklab-matrix": "matrix.mjs",
+    "inklab-device": "device-e2e.mjs"
+  },
+  "scripts": {
+    "test": "node --test \"__tests__/*.test.mjs\"",
+    "start": "node serve.mjs",
+    "engine": "node fetch-engine.mjs",
+    "e2e": "node e2e.mjs",
+    "matrix": "node matrix.mjs",
+    "e2e:device": "node device-e2e.mjs"
+  },
+  "files": [
+    "host",
+    "lib",
+    "fixtures",
+    "scenarios",
+    "*.mjs",
+    "*.lock.json",
+    "README.md",
+    "RUNTIME-NOTES.md",
+    "docs/guide.md"
+  ]
+}
