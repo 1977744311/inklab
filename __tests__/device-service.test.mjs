@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer, request } from 'node:http';
 import { createHash } from 'node:crypto';
-import { createDeviceService, createDeviceHandler, readDeviceConfig, parseAdbDevices, pngMetadata, MAX_DEVICE_RECORDING_BYTES } from '../lib/device-service.mjs';
+import { createDeviceService, createDeviceHandler, readDeviceConfig, loadDeviceScenarios, parseAdbDevices, pngMetadata, MAX_DEVICE_RECORDING_BYTES } from '../lib/device-service.mjs';
 import { parseDeviceArgs } from '../device-e2e.mjs';
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRZkAAAAASUVORK5CYII=', 'base64');
@@ -225,4 +225,16 @@ test('project device config supplies ASR capability and a relocatable control sc
   await service.select('A');
   await service.manual({ command: 'say', value: '测试', waitMs: 0 });
   assert.ok(calls.some(call => call.file === process.execPath && call.args[0] === join(appDir, 'adapters/control.mjs')));
+});
+
+// Packaged inputs are files; optional source-project sidecars must not block loading them.
+test('an AIX input has no source project device config or scenarios', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'inklab-package-input-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const input = join(root, 'app.aix');
+  await writeFile(input, Buffer.from('package'));
+  assert.deepEqual(readDeviceConfig(input), {});
+  assert.deepEqual(await loadDeviceScenarios(input), []);
+  const service = createDeviceService({ appDir: input, enabled: false });
+  assert.equal((await service.status()).enabled, false);
 });

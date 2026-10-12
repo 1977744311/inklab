@@ -39,8 +39,9 @@ import {
   createSquatAccelerometerTrace, createHeadGestureOrientationTrace, parseSensorTraceJson,
 } from '/host/lib/sensor-trace.mjs';
 import { createDriver, assertInput } from '/host/lib/driver.mjs';
+import { rgbaFrameHash } from '/host/lib/frame-hash.mjs';
 import { createCanvasRecorder } from '/host/lib/recording.mjs';
-import { createShotStore } from '/host/lib/shots.mjs';
+import { createShotStore, diffPixels } from '/host/lib/shots.mjs';
 import { createSourceStamp } from '/host/lib/stamp.mjs';
 import { readProjectFile } from '/host/lib/project-file.mjs';
 import { selectRuntimeIds, runtimeDisplayVersion } from '/host/lib/runtime-lock.mjs';
@@ -1284,7 +1285,20 @@ async function runScenario(id = $('scenario-pick').value, options = {}) {
             return evaled ? `${evaled[1]}/index` : undefined;
           })
           .filter(Boolean),
-        frameHash: () => {
+        framePixels: () => {
+          const canvas = stage.canvas;
+          return canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+        },
+        compareFrame: (expected, options = {}) => {
+          const canvas = stage.canvas;
+          const actual = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+          return diffPixels(expected, actual, options);
+        },
+        frameHash: ({ full = false } = {}) => {
+          if (full) {
+            const canvas = stage.canvas;
+            return rgbaFrameHash(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height));
+          }
           const url = stage.canvas.toDataURL('image/png');
           return `${url.length}:${url.slice(-64)}`;
         },

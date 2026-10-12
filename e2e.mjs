@@ -651,6 +651,12 @@ async function main(argv) {
       const shotReport = await evalInPage(cdp, sessionId,
         `__inklab.e2eShotReport(${JSON.stringify(id)})`, { timeoutMs: 60_000 });
 
+      // Retain runtime and temporal pixel samples with the video as inspectable evidence.
+      const runtimeLog = await evalInPage(cdp, sessionId,
+        '(window.__inklab_engineLog || []).map(row => row.level + " " + row.text).join("\\n")');
+      await mkdir(join(reportDir, id), { recursive: true });
+      await writeFile(join(reportDir, id, 'engine.log'), runtimeLog);
+
       // 截图落盘：报告目录恒写（排障要看图）；--accept 时另写基线 + 元数据。
       const shotFiles = [];
       for (const s of shotReport.shots) {
@@ -670,7 +676,7 @@ async function main(argv) {
         }
       }
 
-      // 舞台录屏落盘：宿主在 runScenario 里已封口（download:false），这里把 Blob 按 4MB
+      // 舞台录屏落盘：宿主在 runScenario 里已封口（download:false），这里把 Blob 按 256KiB
       // 分片经 CDP 拉回来写进报告目录（与截图同目录、随报告可再生、不入库），
       // 再把页面里的成片对象弹掉，免得长整轮把几百 MB 的 Blob 都攒在内存里。
       let videoFile = null;
@@ -681,7 +687,8 @@ async function main(argv) {
             + ' return r && r.blob ? { size: r.blob.size, extension: r.extension, pptReady: r.pptReady,'
             + ' durationMs: r.durationMs } : null; })()');
           if (info && info.size > 0) {
-            const CHUNK = 4 * 1024 * 1024;
+            // Keep CDP responses bounded; long recordings must not saturate the command channel.
+            const CHUNK = 256 * 1024;
             const parts = [];
             for (let offset = 0; offset < info.size; offset += CHUNK) {
               const end = Math.min(offset + CHUNK, info.size);
