@@ -102,4 +102,4 @@ InkLab 是纯本地开发工具，仅监听 `127.0.0.1` 回环地址，并拒绝
 
 ## 参与贡献与许可证
 
-详见 [CONTRIBUTING.md](CONTRIBUTING.md)。InkLab 自身的源码采用 [MIT 许可证](LICENSE)开源；该许可证仅覆盖 InkLab 自身代码，不包含 Rokid 的引擎（见[运行时引擎](#运行时引擎)）。
+详见 [CONTRIBUTING.md](CONTRIBUTING.md)。InkLab 自身的源码采用 [MIT 许可证](LICENSE)开源；该许可证仅覆盖 InkLab 自身代码，不包含 Rokid 的引擎（见 [NOTICE](NOTICE) 和[运行时引擎](#运行时引擎)）。

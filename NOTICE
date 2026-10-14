@@ -1,0 +1,6 @@
+Third-party runtime notice
+
+The Ink engine (ink_web) that InkLab downloads at the user's request is
+proprietary software of Rokid. It is not part of the Software and is not
+covered by InkLab's MIT license. The engine is not included in this repository
+or InkLab's npm package; its use remains subject to Rokid's applicable terms.

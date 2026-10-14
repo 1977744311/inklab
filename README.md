@@ -104,4 +104,4 @@ InkLab is a local development tool. It listens on `127.0.0.1` only and rejects r
 
 ## Contributing and license
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). InkLab's own source code is released under the [MIT License](LICENSE). The license covers InkLab's code only, not Rokid's engine; see [The runtime engine](#the-runtime-engine).
+See [CONTRIBUTING.md](CONTRIBUTING.md). InkLab's own source code is released under the [MIT License](LICENSE). The license covers InkLab's code only, not Rokid's engine; see [NOTICE](NOTICE) and [The runtime engine](#the-runtime-engine).

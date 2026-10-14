@@ -52,6 +52,7 @@
     "lib",
     "fixtures",
     "scenarios",
+    "NOTICE",
     "README.md",
     "README.zh-CN.md",
     "docs/guide.md",
