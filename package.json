@@ -1,6 +1,6 @@
 {
   "name": "@aiui/inklab",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "description": "Standalone AIUI source and AIX workbench, deterministic capability harness and device runner.",

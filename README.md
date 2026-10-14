@@ -24,13 +24,15 @@ InkLab runs the same rendering engine as Rokid's web preview (Craft), so **it re
 You need Node.js 22 or later and Chrome. There are no npm runtime dependencies to install.
 
 ```bash
-git clone https://github.com/1977744311/inklab.git
+git clone --branch v0.1.0 --depth 1 https://github.com/1977744311/inklab.git
 cd inklab
 npm run engine                              # first run: discovers engines on Craft and AIUI Studio and downloads them
 npm start -- fixtures/cap-probe-app --open
 ```
 
 The workbench opens at <http://127.0.0.1:8788/>. `fixtures/cap-probe-app` is a built-in probe app so you can try every feature right away; when you have your own app, pass its source directory or `.aix` file instead. To compare two engine versions side by side, tick two lanes in the workbench or open `?runtimes=<id>,<id>` (lane ids are stored in `runtimes.lock.json`).
+
+This quick start uses [v0.1.0](https://github.com/1977744311/inklab/releases/tag/v0.1.0). To develop InkLab, use `main`; see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 > The workbench UI is in Chinese for now.
 

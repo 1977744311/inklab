@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-InkLab has no tagged release yet. Only the latest commit on `main` is supported.
+The latest tagged release and the latest commit on `main` are supported.
 
 ## Reporting a vulnerability
 

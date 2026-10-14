@@ -24,13 +24,15 @@ InkLab 和官方 Craft 网页使用的是同一个渲染引擎，因此**它能�
 需要 Node.js 22 或更高版本，以及 Chrome 浏览器。无需 `npm install` 安装任何运行时依赖。
 
 ```bash
-git clone https://github.com/1977744311/inklab.git
+git clone --branch v0.1.0 --depth 1 https://github.com/1977744311/inklab.git
 cd inklab
 npm run engine                              # 首次运行：从 Craft 和 AIUI Studio 站点获取引擎并缓存到本地
 npm start -- fixtures/cap-probe-app --open
 ```
 
 浏览器会自动打开 <http://127.0.0.1:8788/>。`fixtures/cap-probe-app` 是仓库自带的示例探针应用，方便你直接体验所有功能；调试自己的应用时，把路径换成你的源码目录或 `.aix` 文件即可。想并排对比两个引擎版本，只需在页面顶部勾选两个版本，或在 URL 后加上 `?runtimes=<id>,<id>`（版本 id 见本机的 `runtimes.lock.json`）。
+
+以上命令使用 [v0.1.0](https://github.com/1977744311/inklab/releases/tag/v0.1.0)。参与 InkLab 开发时请使用 `main`，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 核心概念
 

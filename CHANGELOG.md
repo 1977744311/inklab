@@ -1,12 +1,21 @@
 # Changelog
 
 All notable changes to this project are documented in this file. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). InkLab has no tagged release yet.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-14
+
 ### Added
 
+- Initial standalone release of the AIUI workbench, with source-directory and `.aix` loading,
+  hot reload and runtime lanes side by side.
+- Controllable speech, camera, motion sensors, battery, Bluetooth, network and LLM capabilities,
+  including LLM `off`, `live`, `record` and `replay` modes.
+- Declarative browser and headless scenarios, source- and engine-stamped screenshot baselines,
+  evidence export and MP4/WebM stage recording.
+- Optional USB glasses screenshots, H.264 mirroring and read-only device scenarios through `adb`.
 - `README.md` and `README.zh-CN.md` with a quick start, a concept table, troubleshooting and the
   engine download notes; `docs/device.md` for the USB device runner and the contract of the
   device adapter an application provides.
@@ -29,7 +38,8 @@ All notable changes to this project are documented in this file. The format foll
   and `.editorconfig`.
 - Service-level tests for the local server's `Host`, cross-site and CORS handling, a layering test
   (browser-loaded code must not depend on Node) and a packaging test.
-- The MIT `LICENSE`. It covers InkLab's own code only, not the Ink engine.
+- The standard MIT `LICENSE` and a separate third-party runtime `NOTICE`. The license covers
+  InkLab's own code only, not the Ink engine.
 - `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md` and issue and pull request templates.
 
 ### Changed
@@ -76,3 +86,6 @@ All notable changes to this project are documented in this file. The format foll
 - A malformed percent-encoded URL no longer crashes the server, a failing request no longer takes
   it down, and a busy port ends with an error message and exit code 1 instead of an unhandled
   exception.
+
+[Unreleased]: https://github.com/1977744311/inklab/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/1977744311/inklab/releases/tag/v0.1.0
