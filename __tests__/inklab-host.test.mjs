@@ -1,6 +1,6 @@
 // 宿主层的纯逻辑：热重载的变化攒批 + 场景脚本。零浏览器、零网络、零真实等待。
 //
-// 宿主页面本身（canvas/引擎/DOM）只能在真浏览器里验，那部分的证据在 RUNTIME-NOTES 与汇报里；
+// 宿主页面本身（canvas/引擎/DOM）只能在真浏览器里验，那部分的证据在 docs/runtime-notes.md 与汇报里；
 // 这里钉住的是两件「写歪了不会当场报错」的事：
 //   1. 一次保存推一次重载（去抖没生效的话现象是引擎被连续重启，很难在页面上看出来）；
 //   2. 场景脚本的步骤形状与断言口径（步骤写错了 driver 会当成失败，但失败原因得指得准）。
@@ -8,9 +8,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  createChangeBatcher, WATCH_DEBOUNCE_MS, parseArgs, safeJoin,
+  createChangeBatcher, WATCH_DEBOUNCE_MS, parseArgs, safeJoin, isLoopbackHost, allowedLlmOrigin,
   shouldIgnoreWatchPath, partitionAppFiles, llmEnvConfig, mergeLlmConfig, fillRequestDefaults,
-} from '../serve.mjs';
+} from '../lib/node/serve.mjs';
 import { createDriver } from '../lib/driver.mjs';
 import { SCENARIOS, scenarioById } from '../scenarios/index.mjs';
 
@@ -117,6 +117,32 @@ test('目录穿越一律拒绝', () => {
   assert.equal(safeJoin(root, '/pages/home/index.ink'), '/tmp/inklab-root/pages/home/index.ink');
   assert.equal(safeJoin(root, '/../../etc/passwd'), null);
   assert.equal(safeJoin(root, '/%2e%2e/%2e%2e/etc/passwd'), null, '百分号编码的 .. 同样要拦');
+  assert.equal(safeJoin(root, '/%E0%A4%A'), null, '畸形的百分号编码当越界处理，不能抛');
+  assert.equal(safeJoin(root, '/%'), null);
+});
+
+test('isLoopbackHost 只认回环名，前缀/后缀花样一律拒', () => {
+  for (const ok of ['127.0.0.1:8788', 'localhost:8788', 'LOCALHOST:1', '127.0.0.1', 'localhost']) {
+    assert.equal(isLoopbackHost(ok), true, ok);
+  }
+  for (const bad of [
+    undefined, '', 'evil.example', 'evil.example:8788', '127.0.0.1.evil.example:8788',
+    'localhost.evil.example', 'evil.example/127.0.0.1:8788', '127.0.0.1:abc', '127.0.0.2:8788', '0.0.0.0:8788',
+  ]) {
+    assert.equal(isLoopbackHost(bad), false, String(bad));
+  }
+});
+
+test('allowedLlmOrigin：同端口的 127.0.0.1 / localhost 才算宿主页面自己', () => {
+  assert.equal(allowedLlmOrigin('http://127.0.0.1:8788', 'localhost:8788'), true);
+  assert.equal(allowedLlmOrigin('http://localhost:8788', 'localhost:8788'), true);
+  assert.equal(allowedLlmOrigin('http://127.0.0.1', 'localhost'), true, '80 端口的 Host 没有端口号');
+  for (const bad of [
+    'http://127.0.0.1:8789', 'https://127.0.0.1:8788', 'http://evil.example:8788',
+    'http://localhost.evil.example:8788', 'http://127.0.0.1', 'null', '',
+  ]) {
+    assert.equal(allowedLlmOrigin(bad, 'localhost:8788'), false, bad);
+  }
 });
 
 
@@ -234,7 +260,7 @@ test('内置场景清单：id 唯一、字段齐、步骤形状合法', async ()
 });
 
 test('冒烟场景在最小假 view 上全绿；引擎不在运行态时失败点指得准', async () => {
-  const mk = (running) => createDriver({
+  const mk = () => createDriver({
     view: {
       dispatchInput() {}, dispatchVoiceWakeup() {},
       dispatchHostCapabilityEvent() {}, requestRender() {},

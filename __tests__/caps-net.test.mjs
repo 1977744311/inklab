@@ -206,14 +206,14 @@ test('请求体整条留档：隐私白名单类断言看的是整个 body，不
   const net = createNetworkControl();
   // 前 200 字全是白名单字段，违规字段藏在后面——只看 bodyPreview 会得出「合规」的假结论。
   const payload = JSON.stringify({
-    title: '崇左一日', pad: 'x'.repeat(400), photo: 'data:image/jpeg;base64,AAAA',
+    title: '城市一日', pad: 'x'.repeat(400), photo: 'data:image/jpeg;base64,AAAA',
   });
-  await net.interceptor(req('https://kanjian-trip.example/api/trips', { method: 'POST', body: payload }));
+  await net.interceptor(req('https://trips.example/api/trips', { method: 'POST', body: payload }));
 
   const [entry] = net.requestsOf('interceptor');
   assert.equal(entry.bodyPreview.length, 200, 'preview 还是给页面日志看的摘要');
   assert.equal(entry.bodyTruncated, false, '没超上限就要明说「看全了」');
-  // bodyBytes 是 **UTF-8 字节数**（V3 P1-F M4），不是 UTF-16 码元数：载体里有中文时两者不等，
+  // bodyBytes 是 **UTF-8 字节数**，不是 UTF-16 码元数：载体里有中文时两者不等，
   // 而「这条外发了多大」问的恒是真出网字节。
   assert.equal(entry.bodyBytes, utf8Bytes(payload));
   assert.ok(entry.bodyBytes > payload.length, '载体含中文 → 字节数必然大于 length（口径确实换了）');
@@ -223,8 +223,8 @@ test('请求体整条留档：隐私白名单类断言看的是整个 body，不
 test('bodyBytes 按 UTF-8 计：纯 ASCII 与 length 相等，中文按 3 字节一个', () => {
   assert.equal(utf8Bytes(''), 0);
   assert.equal(utf8Bytes('abc'), 3);
-  assert.equal(utf8Bytes('崇左'), 6, '中文 3 字节一个');
-  assert.equal(utf8Bytes('a崇b'), 5);
+  assert.equal(utf8Bytes('城市'), 6, '中文 3 字节一个');
+  assert.equal(utf8Bytes('a城b'), 5);
   assert.equal(utf8Bytes('😀'), 4, '代理对算一个 4 字节码点，不是两个 3 字节');
   assert.equal(utf8Bytes(null), 0);
 });
@@ -232,7 +232,7 @@ test('bodyBytes 按 UTF-8 计：纯 ASCII 与 length 相等，中文按 3 字节
 test('请求体超上限时明说截断了：悄悄截断会把假阴性伪装成通过', async () => {
   const net = createNetworkControl({ bodyLimit: 64 });
   const payload = `${'a'.repeat(64)}data:image/jpeg;base64,ZZZZ`;
-  await net.interceptor(req('https://kanjian-trip.example/api/trips', { method: 'POST', body: payload }));
+  await net.interceptor(req('https://trips.example/api/trips', { method: 'POST', body: payload }));
 
   const [entry] = net.requestsOf('interceptor');
   assert.equal(entry.bodyTruncated, true);
@@ -350,7 +350,7 @@ test('scrubHeaders 大小写不敏感地抹密钥头', () => {
 // ── 外域出网默认桩（guardExternal） ──────────────────────────────────────
 //
 // 为什么这道闸必须在 caps 层而不是场景层：应用里硬编码的线上域名多半在**启动链路**里就打出去了
-// （看见崇左的 applyLaunchEntry 会 fire-and-forget 预取天气），那时候场景脚本一行都还没跑。
+// （有的应用在启动入口里就 fire-and-forget 预取天气），那时候场景脚本一行都还没跑。
 // 实例级节流也拦不住——e2e 每个场景都重建 InkView，每次都是「第一次」。
 
 /** 记账用的假上游：真出网走到这里就说明闸没拦住。 */
@@ -372,7 +372,7 @@ const guarded = (extra = {}) => createNetworkControl({
 test('外域出网默认挡下：不同源的请求回 503 且一个字节都没真出去', async () => {
   const net = guarded();
   const upstream = spyFetch();
-  const res = await net.wrapFetch(upstream)('https://kanjian-trip.cepio.cc/api/weather');
+  const res = await net.wrapFetch(upstream)('https://trips.example.com/api/weather');
 
   assert.equal(res.status, EXTERNAL_STUB_STATUS);
   assert.deepEqual(upstream.hits, [], '真上游一次都不该被碰到');
@@ -398,7 +398,7 @@ test('外域闸让位于显式规则：场景桩过的 /api/trips 照常走 stat
   const upstream = spyFetch();
   net.status('/api/trips', 200, { body: JSON.stringify({ shortLink: 'https://example.invalid/t/x' }) });
 
-  const res = await net.wrapFetch(upstream)('https://kanjian-trip.cepio.cc/api/trips', { method: 'POST', body: '{}' });
+  const res = await net.wrapFetch(upstream)('https://trips.example.com/api/trips', { method: 'POST', body: '{}' });
 
   assert.equal(res.status, 200, '显式桩优先于外域默认桩');
   assert.equal(await res.text(), JSON.stringify({ shortLink: 'https://example.invalid/t/x' }));
@@ -412,7 +412,7 @@ test('allowExternal 点名放行：清单内的外域真出去，别的照挡（
   const f = net.wrapFetch(upstream);
 
   const ok = await f('https://api.openai-like.test/v1/chat/completions', { method: 'POST', body: '{}' });
-  const stubbed = await f('https://kanjian-trip.cepio.cc/api/weather');
+  const stubbed = await f('https://trips.example.com/api/weather');
 
   assert.equal(ok.status, 200);
   assert.deepEqual(upstream.hits, ['https://api.openai-like.test/v1/chat/completions']);
@@ -423,7 +423,7 @@ test('断网优先于外域闸：offline 时外域请求抛的仍是断网错误
   const net = guarded();
   net.offline();
   await assert.rejects(
-    () => net.wrapFetch(spyFetch())('https://kanjian-trip.cepio.cc/api/weather'),
+    () => net.wrapFetch(spyFetch())('https://trips.example.com/api/weather'),
     /网络已断开/,
     '断网是应用要区分的另一种降级：不能被 503 顶掉',
   );
@@ -432,13 +432,13 @@ test('断网优先于外域闸：offline 时外域请求抛的仍是断网错误
 test('guardExternal(false) 关掉闸；wouldStubExternal 能提前说清这条会不会被挡', async () => {
   const net = guarded();
   assert.equal(net.isExternalGuarded(), true, '默认开');
-  assert.equal(net.wouldStubExternal('https://kanjian-trip.cepio.cc/api/weather'), true);
+  assert.equal(net.wouldStubExternal('https://trips.example.com/api/weather'), true);
   assert.equal(net.wouldStubExternal('/api/manifest'), false);
 
   net.guardExternal(false);
   const upstream = spyFetch();
-  await net.wrapFetch(upstream)('https://kanjian-trip.cepio.cc/api/weather');
-  assert.deepEqual(upstream.hits, ['https://kanjian-trip.cepio.cc/api/weather'], '关掉之后真出网');
+  await net.wrapFetch(upstream)('https://trips.example.com/api/weather');
+  assert.deepEqual(upstream.hits, ['https://trips.example.com/api/weather'], '关掉之后真出网');
 });
 
 test('非浏览器环境（拿不到 origin）整道闸天然 no-op —— 不把所有绝对 URL 凭空变成 503', async () => {
@@ -457,11 +457,11 @@ test('isExternalUrl：相对路径/data:/同源都不算外域，异源与解析
   assert.equal(isExternalUrl('blob:http://127.0.0.1:5173/abc', o), false);
   assert.equal(isExternalUrl('https://127.0.0.1:5173/x', o), true, '协议不同就是异源');
   assert.equal(isExternalUrl('http://127.0.0.1:9999/x', o), true, '端口不同就是异源');
-  assert.equal(isExternalUrl('https://kanjian-trip.cepio.cc/api/weather', o), true);
+  assert.equal(isExternalUrl('https://trips.example.com/api/weather', o), true);
   assert.equal(isExternalUrl('http://[not a url', o), true, '解析不出来的按外域挡下');
 });
 
-// ── V3 P1-F M2：协议相对 URL（//host/path）不许绕过外域闸 ────────────────
+// ── 协议相对 URL（//host/path）不许绕过外域闸 ────────────────
 //
 // 旧判据是「有没有 scheme」：`//api.example.com/x` 没有 scheme，于是被当成相对路径直接放行。
 // 而浏览器 fetch 会拿页面协议补全它，**真的打到 api.example.com**——闸被一行写法绕过去，
@@ -470,7 +470,7 @@ test('isExternalUrl：相对路径/data:/同源都不算外域，异源与解析
 test('M2 协议相对 URL 判外域：`//host/path` 会被浏览器补全成真出网，不是相对路径', () => {
   const o = 'http://127.0.0.1:5173';
   assert.equal(isExternalUrl('//api.example.com/x', o), true, '这一条就是被绕过去的那个洞');
-  assert.equal(isExternalUrl('//kanjian-trip.cepio.cc/api/weather', o), true);
+  assert.equal(isExternalUrl('//trips.example.com/api/weather', o), true);
   // 同源写法照旧不算外域（补全后落回宿主自己）。
   assert.equal(isExternalUrl('//127.0.0.1:5173/app/x.js', o), false, '协议相对 + 同一个 host:port → 同源');
   assert.equal(isExternalUrl('/api/x', o), false, '真正的相对路径仍是同源');
@@ -481,13 +481,13 @@ test('M2 协议相对 URL 判外域：`//host/path` 会被浏览器补全成真�
 test('M2 协议相对 URL 在闸上真的被挡下（不只是判定函数对）', async () => {
   const net = guarded();
   const upstream = spyFetch();
-  const res = await net.wrapFetch(upstream)('//kanjian-trip.cepio.cc/api/weather');
+  const res = await net.wrapFetch(upstream)('//trips.example.com/api/weather');
   assert.equal(res.status, EXTERNAL_STUB_STATUS);
   assert.deepEqual(upstream.hits, [], '一个字节都不许打到别人的生产后端');
   assert.equal(net.requestsOf('fetch').at(-1).decision, 'external-stub');
 });
 
-// ── V3 P1-F M3：载体挂在 Request / FormData 上时，隐私断言不许恒真 ───────
+// ── 载体挂在 Request / FormData 上时，隐私断言不许恒真 ───────
 //
 // 「外发载体里没有 dataUrl」是**否定式**结论，只在「整段载体确实读到了」的前提下成立。
 // 旧实现只取 init.body：`fetch(new Request(url,{body}))` 的 body 恒记成空串，
@@ -498,7 +498,7 @@ test('M3 Request 载体：body 从 input 上补取，且断言得到 bodyInspect
   if (typeof Request !== 'function') return; // 老 node 没有全局 Request：这条跳过而不是假绿
   const net = guarded();
   const upstream = spyFetch();
-  const payload = JSON.stringify({ title: '崇左一日', photo: 'data:image/jpeg;base64,AAAA' });
+  const payload = JSON.stringify({ title: '城市一日', photo: 'data:image/jpeg;base64,AAAA' });
   const request = new Request('http://127.0.0.1:5173/api/trips', {
     method: 'POST', body: payload, headers: { 'content-type': 'application/json' },
   });
@@ -560,7 +560,7 @@ test('M3 普通字符串 body 照旧 bodyInspectable:true（既有断言不被�
   assert.equal(rec.body, '{"a":1}');
 });
 
-// ── V3 P1-F M4：请求日志体积有界，且丢过就得说出来 ──────────────────────
+// ── 请求日志体积有界，且丢过就得说出来 ──────────────────────
 //
 // 条数闸单独用是算不住的：logLimit 500 条 × bodyLimit 256KiB × 拦截器/fetch 两层各一条，
 // 最坏 ~256MiB 全压在内存里（无头 Chrome 里就是标签页被杀，跑到一半没有任何解释）。
@@ -571,7 +571,7 @@ test('M4 总体积上限：超限丢最旧，并把 truncatedLog 标出来（账
 
   const big = 'x'.repeat(1200);
   for (let i = 0; i < 12; i += 1) {
-    await net.interceptor(req(`https://kanjian-trip.example/api/t${i}`, { method: 'POST', body: big }));
+    await net.interceptor(req(`https://trips.example/api/t${i}`, { method: 'POST', body: big }));
   }
 
   const stats = net.logStats();
@@ -585,7 +585,7 @@ test('M4 总体积上限：超限丢最旧，并把 truncatedLog 标出来（账
 
 test('M4 单条就超上限时它照样进得来（最该看的那条不能反而被丢掉）', async () => {
   const net = createNetworkControl({ logBytesLimit: 64, bodyLimit: 1024 * 1024 });
-  await net.interceptor(req('https://kanjian-trip.example/api/trips', { method: 'POST', body: 'y'.repeat(5000) }));
+  await net.interceptor(req('https://trips.example/api/trips', { method: 'POST', body: 'y'.repeat(5000) }));
   assert.equal(net.requestsOf('interceptor').length, 1, '闸永远给最新那条留位置');
   assert.equal(net.logStats().truncatedLog, false, '没丢过任何条目 → 账仍是完整的');
 });
@@ -593,7 +593,7 @@ test('M4 单条就超上限时它照样进得来（最该看的那条不能反�
 test('M4 条数闸照旧生效，且 clearLog 把记账一起清干净', async () => {
   const net = createNetworkControl({ logLimit: 3 });
   for (let i = 0; i < 6; i += 1) {
-    await net.interceptor(req(`https://kanjian-trip.example/api/t${i}`));
+    await net.interceptor(req(`https://trips.example/api/t${i}`));
   }
   assert.equal(net.requestsOf('interceptor').length, 3);
   assert.equal(net.logStats().entries, 3);
@@ -609,7 +609,7 @@ test('M4 条数闸照旧生效，且 clearLog 把记账一起清干净', async (
 test('M4 默认闸位不误伤常规跑测：一场 e2e 的量级远在上限之内', async () => {
   const net = createNetworkControl();
   for (let i = 0; i < 60; i += 1) {
-    await net.interceptor(req(`https://kanjian-trip.example/api/t${i}`, { method: 'POST', body: '{"a":1}' }));
+    await net.interceptor(req(`https://trips.example/api/t${i}`, { method: 'POST', body: '{"a":1}' }));
   }
   assert.equal(net.logStats().truncatedLog, false, '常规量级一条都不该被丢（丢了就等于默认配置在说谎）');
   assert.equal(net.requestsOf('interceptor').length, 60);

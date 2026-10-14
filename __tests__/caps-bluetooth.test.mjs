@@ -76,7 +76,7 @@ test('默认模拟设备跑通发现 → GATT → Service → Characteristic →
 test('自定义 GATT 可读写，onWrite 能驱动业务协议假体', async () => {
   const writes = [];
   const sim = createBluetoothSimulator({ devices: [{
-    id: 'wrist-1', name: 'IronCoach-Wrist-Test', services: [{
+    id: 'wrist-1', name: 'Example-Wrist-Test', services: [{
       uuid: '6f1d0000-8f5b-4c7e-9a21-4a19f2b4c001',
       characteristics: [{
         uuid: '6f1d0004-8f5b-4c7e-9a21-4a19f2b4c001',

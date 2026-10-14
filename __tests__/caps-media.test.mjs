@@ -167,7 +167,7 @@ test('默认拍照延迟非零：延迟走完前 takePhoto 不结算，否则应
 // ── 轨道事件回灌 ────────────────────────────────────────────────────────
 
 test('getUserMedia 起流并逐轨回灌 mediaTrackStarted，targetId/sessionId 原样带回', async () => {
-  const { media, api, events } = setup();
+  const { api, events } = setup();
   const stream = await api.getUserMedia({
     targetId: 'tgt-7', sessionId: 'sess-7',
     streamId: 'stream-1', constraints: { video: true, audio: true },

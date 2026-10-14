@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   createProjectSource, diffProjectSnapshots, normalizeProjectPath,
-} from '../lib/project-source.mjs';
+} from '../lib/node/project-source.mjs';
 
 const ROOT = new URL('../', import.meta.url).pathname;
 

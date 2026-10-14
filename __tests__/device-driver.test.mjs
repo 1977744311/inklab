@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDeviceDriver, deviceScenarioSupport, evaluateVisibleText } from '../lib/device-driver.mjs';
+import { createDeviceDriver, deviceScenarioSupport, evaluateVisibleText } from '../lib/node/device-driver.mjs';
 
 const scene = (steps) => ({ id: 'query', device: { readOnly: true, steps } });
 const caps = { asrText: true, ocr: true };

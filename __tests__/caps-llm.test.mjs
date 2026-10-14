@@ -58,12 +58,12 @@ async function settled(promise) {
 const ENDPOINT = 'https://llm.example.com/v1/chat/completions';
 const KEY_ENV = { [API_KEY_ENV]: 'sk-live-DO-NOT-COMMIT-1234567890' };
 
-/** 一次典型的教练请求：prompt 里带时间、会话 id、请求 id——每次都不一样。 */
+/** 一次典型的对话请求：prompt 里带时间、会话 id、请求 id——每次都不一样。 */
 const chatBody = ({ at, session, reqId, stream = true, user = '帮我复盘这组深蹲。' }) => JSON.stringify({
   model: 'qwen-max',
   stream,
   messages: [
-    { role: 'system', content: '你是铁面私教。' },
+    { role: 'system', content: '你是示例助手。' },
     { role: 'user', content: `现在时间 ${at}，会话 ${session}，请求 ${reqId}。${user}` },
   ],
 });
@@ -155,9 +155,9 @@ test('getVendorHeaders 没配置时返回 {}，对齐 glue 里写死的缺席兜
 test('getVendorHeaders 按 service 取，值全部 String 化；没登记的 service 拿到 {} 而不是别家的头', async () => {
   const llm = createLanguageModelCapabilities({
     mode: 'replay',
-    vendorHeaders: { coach: { 'x-rokid-uid': 42, 'x-rokid-token': 'abc' } },
+    vendorHeaders: { assistant: { 'x-rokid-uid': 42, 'x-rokid-token': 'abc' } },
   });
-  assert.deepEqual(await llm.capabilities.openService.getVendorHeaders({ service: 'coach' }), {
+  assert.deepEqual(await llm.capabilities.openService.getVendorHeaders({ service: 'assistant' }), {
     'x-rokid-uid': '42', 'x-rokid-token': 'abc',
   });
   assert.deepEqual(await llm.capabilities.openService.getVendorHeaders({ service: 'other' }), {});
@@ -165,12 +165,12 @@ test('getVendorHeaders 按 service 取，值全部 String 化；没登记的 ser
 
 test('单服务调试可以直接给一张扁平头表，不必套一层 service', async () => {
   const llm = createLanguageModelCapabilities({ mode: 'replay', vendorHeaders: { 'x-rokid-token': 'abc' } });
-  assert.deepEqual(await llm.capabilities.openService.getVendorHeaders({ service: 'coach' }), { 'x-rokid-token': 'abc' });
+  assert.deepEqual(await llm.capabilities.openService.getVendorHeaders({ service: 'assistant' }), { 'x-rokid-token': 'abc' });
 });
 
 test('getManifest 按请求里的 service 取（wasm serde 名表实证字段名），缺省 {} 表示"能力在、内容空"', async () => {
-  const llm = createLanguageModelCapabilities({ mode: 'replay', manifest: { coach: { name: '铁面私教' } } });
-  assert.deepEqual(await llm.capabilities.openService.getManifest({ service: 'coach' }), { name: '铁面私教' });
+  const llm = createLanguageModelCapabilities({ mode: 'replay', manifest: { assistant: { name: '示例助手' } } });
+  assert.deepEqual(await llm.capabilities.openService.getManifest({ service: 'assistant' }), { name: '示例助手' });
   assert.deepEqual(await llm.capabilities.openService.getManifest({ service: 'nope' }), {});
   assert.deepEqual(llm.calls.map((c) => c.method), ['getManifest', 'getManifest']);
 });
@@ -233,113 +233,6 @@ test('stream 留在键里：流式与非流式的响应线格式不同，混用�
   const streamed = chatBody({ at: '2026-08-25T10:00:00Z', session: 'a', reqId: '1', stream: true });
   const plain = chatBody({ at: '2026-08-25T10:00:00Z', session: 'a', reqId: '1', stream: false });
   assert.notEqual(cassetteKey(streamed), cassetteKey(plain));
-});
-
-test('组间教练键只归一 trace 边界抖动，次数与趋势仍必须区分录像', () => {
-  const coachBody = ({
-    reps = 6, durationSec = 11, restRemainingSec = 89,
-    amplitudes = [99, 100, 101], last3AvgPct = 101, trend = 'flat', change = 0,
-  } = {}) => JSON.stringify({
-    model: 'inklab-cassette',
-    stream: true,
-    messages: [
-      { role: 'system', content: '你是组间教练。' },
-      {
-        role: 'user',
-        content: `【本组数据】\n${JSON.stringify({
-          exercise: '俯身划船', reps, durationSec, restRemainingSec,
-          amplitudeRatiosPct: amplitudes,
-          firstBelow80Rep: null,
-          firstBelow60Rep: null,
-          last3AvgPct,
-          last3ChangePct: change,
-          last3Trend: trend,
-        })}\n只输出 JSON。`,
-      },
-    ],
-  });
-
-  const a = coachBody();
-  const sameMeaning = coachBody({
-    durationSec: 12, restRemainingSec: 90, amplitudes: [98, 100, 101], last3AvgPct: 100,
-  });
-  assert.equal(cassetteKey(a), cassetteKey(sameMeaning),
-    '实时计时和边界样本的微小抖动不应让同一 trace 永远 replay-miss');
-  assert.notEqual(cassetteKey(a), cassetteKey(coachBody({ reps: 7 })),
-    '次数会改变处方，不得归一');
-  assert.notEqual(cassetteKey(a), cassetteKey(coachBody({ trend: 'down' })),
-    '趋势方向会改变点评，不得归一');
-  assert.notEqual(cassetteKey(a), cassetteKey(coachBody({ amplitudes: [79, 80, 81] })),
-    '约 20% 的幅度衰减会改变点评，量化后仍必须是不同键');
-  assert.notEqual(cassetteKey(a), cassetteKey(coachBody({ last3AvgPct: 80 })),
-    '末三次均幅出现约 20% 衰减必须保留为不同键');
-  assert.notEqual(cassetteKey(a), cassetteKey(coachBody({ restRemainingSec: 70 })),
-    '明显不同的休息余量会改变处方，5 秒分桶后仍必须是不同键');
-  assert.equal(cassetteKey(a), cassetteKey(coachBody({ change: -1 })),
-    '同一完整 trace 在 flat 内的 -1% 浮点舍入应归零');
-  assert.equal(cassetteKey(a), cassetteKey(coachBody({ change: 1 })),
-    '同一完整 trace 在 flat 内的 +1% 浮点舍入应归零');
-  assert.notEqual(cassetteKey(a), cassetteKey(coachBody({ change: 2 })),
-    '2% 变化已经超出已证实的舍入噪声，必须保留为不同 key');
-  const normalized = normalizeRequestBody(sameMeaning).canonical.messages.at(-1).content;
-  assert.match(normalized, /"durationSec":10/);
-  assert.match(normalized, /"restRemainingSec":90/);
-  assert.match(normalized, /"amplitudeRatiosPct":\[100,100,100\]/);
-  assert.match(normalized, /"last3AvgPct":100/);
-  assert.match(normalized, /"last3Trend":"flat"/);
-  assert.match(normalized, /"last3ChangePct":0/);
-});
-
-test('set-report 助手的命名 restRemainingSec 同时兼容 JSON 与 key=value，其他数字不动', () => {
-  const body = (rest, weight = 20, json = false) => JSON.stringify({
-    model: 'inklab-cassette',
-    stream: true,
-    messages: [{
-      role: 'user',
-      content: json
-        ? `页面上下文 ${JSON.stringify({ page: 'set-report', restRemainingSec: rest, weightKg: weight })}`
-        : `page=set-report restRemainingSec=${rest} weightKg=${weight}`,
-    }],
-  });
-
-  assert.equal(cassetteKey(body(89)), cassetteKey(body(90)), 'key=value 的 ±1s 应命中同一录像');
-  assert.equal(cassetteKey(body(89, 20, true)), cassetteKey(body(90, 20, true)),
-    'JSON 的 ±1s 应命中同一录像');
-  assert.notEqual(cassetteKey(body(90)), cassetteKey(body(60)), '90s 与 60s 仍必须区分');
-  assert.notEqual(cassetteKey(body(90, 20)), cassetteKey(body(90, 25)), '其他业务数字不能被量化');
-  const normalized = normalizeRequestBody(body(89)).canonical.messages[0].content;
-  assert.match(normalized, /restRemainingSec=90/);
-  assert.match(normalized, /weightKg=20/);
-});
-
-test('lastSummary.durationSec 只容忍同一结算流程的秒级抖动', () => {
-  const body = (durationSec, volumeKg = 100, outerJson = false) => JSON.stringify({
-    model: 'inklab-cassette',
-    stream: true,
-    messages: [{
-      role: 'user',
-      content: `【训练态】\npage=home\n【画像】\n${outerJson
-        ? JSON.stringify({ lastSummary: { setCount: 1, volumeKg, durationSec }, freq7d: 1 })
-        : `lastSummary=${JSON.stringify({ setCount: 1, volumeKg, durationSec })}、freq7d=1`}\n用户:这周练了几次`,
-    }],
-  });
-
-  assert.equal(cassetteKey(body(34)), cassetteKey(body(36)), 'key=value 事实包的 34/36s 应同落到 35s 桶');
-  assert.equal(cassetteKey(body(35, 100, true)), cassetteKey(body(36, 100, true)),
-    '纯 JSON 形状的 35/36s 也应落在同一 5s 桶');
-  assert.notEqual(cassetteKey(body(35)), cassetteKey(body(40)), '35/40s 仍是不同时长桶');
-  assert.notEqual(cassetteKey(body(35, 100)), cassetteKey(body(35, 120)), '容量不得随时长被量化');
-  const normalized = normalizeRequestBody(body(36)).canonical.messages[0].content;
-  assert.match(normalized, /"durationSec":35/);
-  assert.match(normalized, /"volumeKg":100/);
-
-  const ordinary = (durationSec) => JSON.stringify({
-    model: 'inklab-cassette',
-    messages: [{ role: 'user', content: JSON.stringify({ page: 'history', durationSec }) }],
-  });
-  assert.notEqual(cassetteKey(ordinary(35)), cassetteKey(ordinary(36)),
-    '非 lastSummary 的普通 durationSec 必须原样进键');
-  assert.match(normalizeRequestBody(ordinary(36)).canonical.messages[0].content, /"durationSec":36/);
 });
 
 // ── record / replay ────────────────────────────────────────────────────
@@ -481,7 +374,7 @@ test("failNext timeout 默认永不落定：先落定的必须是应用自己那
 
   const inflight = llm.fetch(ENDPOINT, { method: 'POST', body: chatBody({ at: '2026-08-25T10:00:00Z', session: 'a', reqId: '1' }) });
   let appFallback = null;
-  clock.setTimeout(() => { appFallback = 'rules'; }, 8000); // coach-agent 的 GENERATE_TIMEOUT_MS
+  clock.setTimeout(() => { appFallback = 'rules'; }, 8000); // 应用自己的生成超时闸
 
   await clock.advance(8000);
   assert.equal(appFallback, 'rules', '应用必须能靠自己的定时器脱身');

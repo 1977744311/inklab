@@ -1,48 +1,15 @@
-// InkLab 纯逻辑层：引擎定位 + bundle 整理。零网络零 IO。
+// InkLab 纯逻辑层：引擎版本解析 + bundle 整理。零网络零 IO。
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  extractMainBundlePath, extractChunkNames, rankGlueCandidates, looksLikeGlue,
-  extractWasmPath, extractEngineVersion, compareLock, compareVersions, pickNewestBuild,
-  VERSION_ANCHOR, BUILD_ANCHOR,
-} from '../lib/engine-source.mjs';
+  extractEngineVersion, VERSION_ANCHOR, BUILD_ANCHOR,
+} from '../lib/node/engine-version.mjs';
 import {
   shouldInclude, buildManifest, validateManifest, isTextPath, DEFAULT_EXCLUDES,
 } from '../lib/bundle.mjs';
 
-// ── 引擎定位 ────────────────────────────────────────────────────────────
-
-test('从 Craft 首页取主 bundle 路径', () => {
-  const html = `<head><link href="/assets/index-X.css"><script type="module" crossorigin src="/assets/index-fGBNsmlf.js"></script></head>`;
-  assert.equal(extractMainBundlePath(html), '/assets/index-fGBNsmlf.js');
-  assert.equal(extractMainBundlePath('<html></html>'), null);
-});
-
-test('抽出动态 import 的 chunk 名并按可疑度排序(index-* 优先)', () => {
-  const js = `a(()=>import("./flowDiagram-PKNHOUZH-D5IXPmuC.js"));b(()=>import("./index-D_EpyLZO.js"));
-    c(()=>import("./nls.messages.zh-cn-DjCDCmFK.js"));d(()=>import("./index-CRZKnqBI.js"));
-    e(()=>import("./index-D_EpyLZO.js"))`;
-  const names = extractChunkNames(js);
-  assert.equal(names.length, 4, '同名 chunk 去重');
-  const ranked = rankGlueCandidates(names);
-  // 图表与语言包被噪声表滤掉，只剩两个 index-*
-  assert.deepEqual(ranked, ['index-CRZKnqBI.js', 'index-D_EpyLZO.js']);
-});
-
-test('glue 识别要求 wasm 路径 + initInk + createInkView 三者同时具备', () => {
-  const real = `new URL("/assets/ink_web_bg-Cv9NP4M6.wasm",import.meta.url);function initInk(){}createInkView()`;
-  assert.equal(looksLikeGlue(real), true);
-  assert.equal(looksLikeGlue('createInkView() 但没有 wasm'), false);
-  assert.equal(looksLikeGlue('/assets/ink_web_bg-X.wasm 但没有入口'), false);
-  assert.equal(looksLikeGlue(''), false);
-});
-
-test('从 glue 抽 wasm 资源路径', () => {
-  const glue = `n.wasmUrl||new URL("/assets/ink_web_bg-Cv9NP4M6.wasm",import.meta.url)`;
-  assert.equal(extractWasmPath(glue), '/assets/ink_web_bg-Cv9NP4M6.wasm');
-  assert.equal(extractWasmPath('no wasm here'), null);
-});
+// ── 引擎版本 ────────────────────────────────────────────────────────────
 
 // 版本靠锚点定位:wasm 里有几十个第三方 crate 版本号,裸 semver 正则必误命中。
 // 实测两处锚点分别挂语义版本与 daily 构建戳,不是同一处。
@@ -65,31 +32,20 @@ test('引擎版本:双锚点各取一样,正式版与 daily 都能解', () => {
   assert.equal(extractEngineVersion(noisy).version, null);
 });
 
-test('多构建择新:Craft 同时挂着正式版与 daily,必须选对', () => {
-  assert.ok(compareVersions('0.17.0', '0.16.1') > 0);
-  assert.ok(compareVersions('0.17.0-daily.202608180107', '0.17.0') > 0, '同版本时 daily 戳更新');
-  assert.equal(compareVersions('0.17.0', '0.17.0'), 0);
-  const picked = pickNewestBuild([
-    { version: '0.16.1', build: null, wasmPath: '/a.wasm' },
-    { version: '0.17.0', build: '0.17.0-daily.202608180107', wasmPath: '/b.wasm' },
-  ]);
-  assert.equal(picked.wasmPath, '/b.wasm');
-  assert.equal(pickNewestBuild([]), null);
-  assert.equal(pickNewestBuild([{ version: null }]), null);
-});
+// 新布局的 daily（Studio 0.19.0-daily.202610080438 起）：两处静态文案前面不再紧挨版本串，
+// 版本只剩引擎版本表里的 `ink<构建戳>skia`。正式版的版本表写的是 crate 版本 0.1.0（不是发行版本）。
+test('引擎版本:新布局的 daily 靠版本表里的构建戳读出;正式版的 crate 版本不误判;锚点读得出时以锚点为准', () => {
+  const newLayout = (table) => Buffer.from(`\0${VERSION_ANCHOR}\0\0${BUILD_ANCHOR}\0\0${table}\0`, 'latin1');
+  assert.deepEqual(extractEngineVersion(newLayout('ink0.19.0-daily.202610080438skia')),
+    { version: '0.19.0', build: '0.19.0-daily.202610080438' });
+  assert.deepEqual(extractEngineVersion(newLayout('ink0.1.0skia')), { version: null, build: null },
+    '读不出就是读不出：0.1.0 不是发行版本，不能当版本');
 
-test('lock 比对:一致/首次/漂移三态,漂移逐项列出差异', () => {
-  const actual = {
-    engineVersion: '0.17.0', engineBuild: '0.17.0-daily.202608180107',
-    gluePath: '/assets/index-A.js', glueSha256: 'aaa',
-    wasmPath: '/assets/ink_web_bg-A.wasm', wasmSha256: 'bbb',
-  };
-  assert.deepEqual(compareLock(null, actual), { status: 'absent', changes: [] });
-  assert.equal(compareLock({ ...actual }, actual).status, 'match');
-
-  const drift = compareLock({ ...actual, wasmSha256: 'old', engineBuild: '0.16.0-daily.1' }, actual);
-  assert.equal(drift.status, 'drift');
-  assert.deepEqual(drift.changes.map((c) => c.key).sort(), ['engineBuild', 'wasmSha256']);
+  const oldDaily = Buffer.from(
+    `\0 0.17.0${VERSION_ANCHOR}\0 0.17.0-daily.202608180107${BUILD_ANCHOR}\0ink0.19.0-daily.209999999999skia\0`, 'latin1');
+  assert.deepEqual(extractEngineVersion(oldDaily), { version: '0.17.0', build: '0.17.0-daily.202608180107' });
+  const oldRelease = Buffer.from(`\0 0.16.1${VERSION_ANCHOR}\0\0${BUILD_ANCHOR}\0ink0.1.0skia\0`, 'latin1');
+  assert.deepEqual(extractEngineVersion(oldRelease), { version: '0.16.1', build: null });
 });
 
 // ── bundle 整理 ─────────────────────────────────────────────────────────
@@ -97,7 +53,7 @@ test('lock 比对:一致/首次/漂移三态,漂移逐项列出差异', () => {
 test('排除口径对齐 .aixignore:测试/脚本/内容源/设计稿/点文件都不进 bundle', () => {
   for (const p of [
     'lib/__tests__/shell.test.mjs', 'lib/foo.test.mjs', 'scripts/build-pack.mjs',
-    'data/packs/iron-coach/gear.json', 'assets/mockups-ai/p1-01.png', 'assets/app-icon.png',
+    'data/packs/sample/items.json', 'assets/mockups-ai/p1-01.png', 'assets/app-icon.png',
     'package.json', 'README.md', '.DS_Store', 'node_modules/x/index.js', 'docs/a.md',
   ]) assert.equal(shouldInclude(p), false, `应排除 ${p}`);
 

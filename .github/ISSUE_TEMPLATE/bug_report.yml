@@ -1,0 +1,54 @@
+name: Bug report
+description: Something in InkLab does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please check [Troubleshooting](https://github.com/1977744311/inklab#troubleshooting) first.
+        Security problems go through a private advisory, not an issue (see SECURITY.md).
+        English or Chinese are both fine.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: The smallest app, scenario or command that shows the problem.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Terminal output, the failing step from `e2e/report/last-run.json`, or Inspector boot / engine log lines.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: InkLab commit
+      description: Output of `git rev-parse --short HEAD`.
+    validations:
+      required: true
+  - type: input
+    id: lane
+    attributes:
+      label: Runtime lane
+      description: The lane id and engine version, from the workbench lane picker or your `runtimes.lock.json`, or "several / not lane-specific".
+      placeholder: craft-0.18.0 (engine 0.18.0)
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: OS, Node.js version, Chrome version.
+      placeholder: macOS 26.0, Node 22.12, Chrome 141
+    validations:
+      required: true

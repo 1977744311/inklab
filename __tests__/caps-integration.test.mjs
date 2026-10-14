@@ -42,7 +42,7 @@ test('组装结果把引擎会调的每个方法都配上了（少一个，该�
     }
   }
   // geolocation / payment 之外的能力都必须齐全；battery 已是 0.17 一等假体。
-  // 这几个铁面私教用不到，但缺席就要在这里显式记账，而不是等运行时才发现。
+  // 这几个应用大多用不到，但缺席就要在这里显式记账，而不是等运行时才发现。
   const expectedGaps = missing.filter((n) => /^(geolocation|payment)\./.test(n));
   const realGaps = missing.filter((n) => !expectedGaps.includes(n));
   assert.deepEqual(realGaps, [], `这些方法没配上，引擎一用就抛：${realGaps.join(', ')}`);
@@ -100,7 +100,7 @@ test('缺 dispatchEvent 直接抛：没有回灌出口的能力集是个哑弹�
   assert.throws(() => createHostCapabilities({}), /dispatchEvent/);
 });
 
-// ── V3 P1-F H2：replay 的 LLM 请求必须穿得过外域闸，才走得到录像 ──────────
+// ── replay 的 LLM 请求必须穿得过外域闸，才走得到录像 ──────────
 //
 // 现场：宿主把两层串成 `globalThis.fetch = net.wrapFetch(llm.fetch)` —— **外域闸在外层、
 // 录像回放在内层**。而 replay 的端点恒是外域（没配 endpoint 时兜底成 REPLAY_ENDPOINT，
@@ -164,11 +164,11 @@ test('H2 放行清单只放 LLM 端点：应用自己硬编码的线上域名照
     },
   });
   const wired = caps.net.wrapFetch(caps.llm.fetch);
-  const res = await wired('https://kanjian-trip.example/api/weather');
+  const res = await wired('https://trips.example/api/weather');
   assert.equal(res.status, EXTERNAL_STUB_STATUS, '非 LLM 的外域请求必须照旧被挡下');
   assert.equal(baseCalled, false, '一个字节都不许打到别人的生产后端');
   // 反过来 LLM 端点在同一套闸下是通的（同一次装配里两条结论并存，证明放行是**点名**的）。
-  assert.ok(caps.net.wouldStubExternal('https://kanjian-trip.example/api/weather'));
+  assert.ok(caps.net.wouldStubExternal('https://trips.example/api/weather'));
   assert.equal(caps.net.wouldStubExternal(REPLAY_ENDPOINT), false);
 });
 

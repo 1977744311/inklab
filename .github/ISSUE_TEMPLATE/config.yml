@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/1977744311/inklab/security/advisories/new
+    about: Report security problems privately.
+  - name: Documentation
+    url: https://github.com/1977744311/inklab/tree/main/docs
+    about: Guides and engine field notes (Chinese).

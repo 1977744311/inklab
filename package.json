@@ -4,37 +4,64 @@
   "private": true,
   "type": "module",
   "description": "Standalone AIUI source and AIX workbench, deterministic capability harness and device runner.",
+  "keywords": [
+    "aiui",
+    "ink",
+    "workbench",
+    "hot-reload",
+    "simulator",
+    "e2e",
+    "screenshot-baseline"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/1977744311/inklab.git"
+  },
+  "bugs": {
+    "url": "https://github.com/1977744311/inklab/issues"
+  },
+  "homepage": "https://github.com/1977744311/inklab#readme",
+  "license": "MIT",
+  "author": "Steven (https://github.com/1977744311)",
   "engines": {
     "node": ">=22"
   },
   "exports": {
     "./lib/*": "./lib/*",
-    "./e2e": "./e2e.mjs"
+    "./e2e": "./lib/node/e2e.mjs"
   },
   "bin": {
-    "inklab": "serve.mjs",
-    "inklab-e2e": "e2e.mjs",
-    "inklab-engine": "fetch-engine.mjs",
-    "inklab-matrix": "matrix.mjs",
-    "inklab-device": "device-e2e.mjs"
+    "inklab": "bin/inklab.mjs",
+    "inklab-e2e": "bin/inklab-e2e.mjs",
+    "inklab-engine": "bin/inklab-engine.mjs",
+    "inklab-matrix": "bin/inklab-matrix.mjs",
+    "inklab-device": "bin/inklab-device.mjs"
   },
   "scripts": {
     "test": "node --test \"__tests__/*.test.mjs\"",
-    "start": "node serve.mjs",
-    "engine": "node fetch-engine.mjs",
-    "e2e": "node e2e.mjs",
-    "matrix": "node matrix.mjs",
-    "e2e:device": "node device-e2e.mjs"
+    "lint": "eslint .",
+    "start": "node bin/inklab.mjs",
+    "engine": "node bin/inklab-engine.mjs",
+    "e2e": "node bin/inklab-e2e.mjs",
+    "matrix": "node bin/inklab-matrix.mjs",
+    "e2e:device": "node bin/inklab-device.mjs"
   },
   "files": [
+    "bin",
     "host",
     "lib",
     "fixtures",
     "scenarios",
-    "*.mjs",
-    "*.lock.json",
     "README.md",
-    "RUNTIME-NOTES.md",
-    "docs/guide.md"
-  ]
+    "README.zh-CN.md",
+    "docs/guide.md",
+    "docs/device.md",
+    "docs/runtime-notes.md",
+    "!**/e2e/report/**"
+  ],
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.12.0",
+    "globals": "^17.13.0"
+  }
 }

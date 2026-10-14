@@ -77,7 +77,7 @@ test('navigator 接线：不可配置的原生自有属性会响亮拒绝，不�
 });
 
 test('电脑适配：保留原生 requestDevice 结果，由 ink_web 负责 scanDevices 跨桥', async () => {
-  const selected = { id: 'real-watch', name: 'IronCoach Wrist' };
+  const selected = { id: 'real-watch', name: 'Example Wrist' };
   const calls = [];
   const nativeBluetooth = {
     async getAvailability() { calls.push('available'); return true; },
@@ -94,7 +94,7 @@ test('电脑适配：保留原生 requestDevice 结果，由 ink_web 负责 scan
 });
 
 test('电脑适配：引擎跨桥丢用户手势时挂起扫描，DOM 授权后原请求继续', async () => {
-  const selected = { id: 'real-watch', name: 'IronCoach-Wrist' };
+  const selected = { id: 'real-watch', name: 'Example-Wrist' };
   const options = { filters: [{ services: ['wrist-service'] }] };
   let attempts = 0;
   const adapter = createComputerBluetoothAdapter({
@@ -124,7 +124,7 @@ test('电脑适配：引擎跨桥丢用户手势时挂起扫描，DOM 授权后�
 });
 
 test('电脑适配：已授权设备供后续重扫复用，不重复弹 chooser', async () => {
-  const selected = { id: 'real-watch', name: 'IronCoach-Wrist' };
+  const selected = { id: 'real-watch', name: 'Example-Wrist' };
   let attempts = 0;
   const adapter = createComputerBluetoothAdapter({
     requestDevice: async () => { attempts += 1; return selected; },
@@ -138,7 +138,7 @@ test('电脑适配：已授权设备供后续重扫复用，不重复弹 chooser
 test('电脑适配：工程重载断开真实 GATT，但保留已授权设备供新实例重连', async () => {
   let disconnects = 0;
   const selected = {
-    name: 'IronCoach-Wrist',
+    name: 'Example-Wrist',
     gatt: {
       connected: true,
       disconnect() { disconnects += 1; this.connected = false; },

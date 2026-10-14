@@ -8,7 +8,7 @@ import {
   parseE2eArgs, extractDevtoolsWsUrl, buildPageUrl, judgeScenario, summarizeNetLog,
   resolveScenarioLlm, sameLlmConfig, describeLlm, cassetteTargetFor, pinCassetteModel,
   shouldNavigateForScenario,
-} from '../e2e.mjs';
+} from '../lib/node/e2e.mjs';
 import { hash16, stableStringify } from '../lib/caps/llm.mjs';
 
 test('参数解析：场景可多次给也可逗号分隔，未知参数与坏 llm 模式当场抛', () => {
@@ -143,26 +143,26 @@ test('场景结论：步骤失败恒 fail；基线只在工程已有基线时强
   assert.equal(resolveScenarioLlm({ llm: { mode: 'off', expectOutcomes: ['replay-miss'] } }, {}, 'off').expectOutcomes ?? null, null);
 });
 
-// ── V3 P1-F L5：本轮的网络账面要留进 last-run.json ───────────────────────
+// ── 本轮的网络账面要留进 last-run.json ───────────────────────
 //
 // 「全程零真实外呼」此前只活在场景内的一条断言里：跑完就没了，事后翻报告看不出这一轮到底
 // 有没有东西打出去、被挡下的是谁。runReport 里存两张按域名收敛的名单之后，这个结论才有留痕。
 
-test('L5 网络账面：按域名分成「被闸挡下」与「真放行」两张名单，只看 fetch 层', () => {
+test('网络账面：按域名分成「被闸挡下」与「真放行」两张名单，只看 fetch 层', () => {
   const rows = [
     // 拦截器层记的是「引擎想发什么」，与「实际出去了什么」不是一回事——账只认 fetch 层。
-    { layer: 'interceptor', url: 'https://kanjian-trip.example/api/weather', method: 'GET', decision: 'continue' },
-    { layer: 'fetch', url: 'https://kanjian-trip.example/api/weather', method: 'GET', decision: 'external-stub' },
-    { layer: 'fetch', url: 'https://kanjian-trip.example/api/spots', method: 'GET', decision: 'external-stub' },
+    { layer: 'interceptor', url: 'https://trips.example/api/weather', method: 'GET', decision: 'continue' },
+    { layer: 'fetch', url: 'https://trips.example/api/weather', method: 'GET', decision: 'external-stub' },
+    { layer: 'fetch', url: 'https://trips.example/api/spots', method: 'GET', decision: 'external-stub' },
     { layer: 'fetch', url: 'http://127.0.0.1:5173/app/lib/x.js', method: 'GET', decision: 'pass' },
     { layer: 'fetch', url: 'http://127.0.0.1:5173/api/manifest', method: 'GET', decision: 'pass' },
-    { layer: 'fetch', url: 'https://kanjian-trip.example/api/trips', method: 'POST', decision: 'status' },
+    { layer: 'fetch', url: 'https://trips.example/api/trips', method: 'POST', decision: 'status' },
     { layer: 'fetch', url: 'https://other.example/x', method: 'GET', decision: 'block' },
   ];
   const net = summarizeNetLog(rows, { truncatedLog: false });
 
   assert.equal(net.fetchCalls, 6, '只数 fetch 层');
-  assert.deepEqual(net.externalStubs, [{ origin: 'https://kanjian-trip.example', count: 2 }],
+  assert.deepEqual(net.externalStubs, [{ origin: 'https://trips.example', count: 2 }],
     '被外域闸挡下的按域名收敛（挡的是谁得看得见，不能只说「挡了」）');
   assert.deepEqual(net.passed, [{ origin: 'http://127.0.0.1:5173', count: 2 }],
     '真放行的只有宿主自己 = 本轮零真实外呼');
@@ -171,23 +171,23 @@ test('L5 网络账面：按域名分成「被闸挡下」与「真放行」两�
   assert.equal(net.truncatedLog, false);
 });
 
-test('L5 网络账面：真打到外网的域名必须出现在 passed 里（这条就是要查的事）', () => {
+test('网络账面：真打到外网的域名必须出现在 passed 里（这条就是要查的事）', () => {
   const net = summarizeNetLog([
-    { layer: 'fetch', url: 'https://kanjian-trip.cepio.cc/api/weather', method: 'GET', decision: 'pass' },
+    { layer: 'fetch', url: 'https://trips.example.com/api/weather', method: 'GET', decision: 'pass' },
     { layer: 'fetch', url: 'http://127.0.0.1:5173/api/manifest', method: 'GET', decision: 'pass' },
   ]);
   assert.deepEqual(net.passed.map((p) => p.origin).sort(),
-    ['http://127.0.0.1:5173', 'https://kanjian-trip.cepio.cc'],
+    ['http://127.0.0.1:5173', 'https://trips.example.com'],
     '闸被关掉/绕开时，账面上必须能一眼看出是哪个线上域名真出去了');
 });
 
-test('L5 网络账面：日志被闸丢过就把 truncatedLog 带进报告（账不完整不许装作完整）', () => {
+test('网络账面：日志被闸丢过就把 truncatedLog 带进报告（账不完整不许装作完整）', () => {
   const net = summarizeNetLog([], { truncatedLog: true });
   assert.equal(net.truncatedLog, true, 'passed 是空的可能只是因为记录被丢了——这个区别必须留在报告里');
   assert.deepEqual(net.passed, []);
 });
 
-test('L5 网络账面：坏输入不炸（拿不到 caps.net 时报告照样写得出来）', () => {
+test('网络账面：坏输入不炸（拿不到 caps.net 时报告照样写得出来）', () => {
   assert.deepEqual(summarizeNetLog(null).passed, []);
   assert.deepEqual(summarizeNetLog(undefined).externalStubs, []);
   assert.equal(summarizeNetLog([{ layer: 'fetch', url: '', decision: 'pass' }]).passed[0].origin, '(空)');

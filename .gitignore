@@ -4,15 +4,14 @@ node_modules/
 .env
 .env.*
 !.env.example
-__pycache__/
-.tmp/
-tmp/
-dist/
-.agents/skills/
-**/e2e/report/
-**/build/
-**/managed_components/
-**/sdkconfig.old
-.engine/
-.runs/
+
+# 本机配置（LLM 端点 / 密钥文件路径等），不入库
 llm.local.json
+
+# 本机状态：每个人取到的引擎、选用的引擎都不一样，清单与二进制都不入库（npm run engine 生成）
+/runtimes.lock.json
+/.engine/
+
+# 跑测产物：e2e 报告（截图、录屏、last-run.json）与 matrix 默认输出
+**/e2e/report/
+.runs/

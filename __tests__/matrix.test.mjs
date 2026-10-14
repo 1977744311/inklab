@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseMatrixArgs, conformanceTable, visualDiffs } from '../matrix.mjs';
+import { parseMatrixArgs, conformanceTable, visualDiffs } from '../lib/node/matrix.mjs';
 
 test('矩阵参数支持多 runtime、多场景与全光照', () => {
   const opts = parseMatrixArgs([

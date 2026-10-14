@@ -1,115 +1,16 @@
-# Detailed workbench guide
+# InkLab 使用指南
 
-The examples below include historical product scenarios. For the standalone package layout, setup and runtime cache location, use the repository README.
-
-# InkLab — 本地 AIUI 宿主
-
-## USB 真机测试
-
-InkLab 现在也能在已连接的真实眼镜上执行场景。接好已授权的 USB，保持手机 Rokid App
-连接，在眼镜里手动打开一次 AIUI 沉浸应用，然后启动：
-
-```bash
-npm start -- apps/immersive/iron-coach-aiui --device --serial 1901092534007858
-# 打开 http://127.0.0.1:8788/device ，或点模拟器右上角「USB 真机」
-```
-
-工作台直接显示 ADB 返回的完整 PNG，可从电脑移焦、确认、返回、重放已校准镜腿长按，
-也可向支持的应用调试包发送 ASR 识别文字。运行中的步骤、真实截图、OCR 原文和最终报告
-会同步展示。源码修改不会更新眼镜已安装的包；新版本仍须在新版 Studio 打包并安装。
-
-点「开始实时投屏」可持续看真实眼镜画面：眼镜 `screenrecord` 连续输出 H.264，本机
-`ffmpeg` 解码，经本地事件流送到浏览器。不是每次操作后才截图，也没有循环启动
-`adb screencap`。当前目标实测支持 `480×640`；原生画面静止时会少出帧，工作台显示实际
-接收 FPS、最近绘制年龄和本机解码完成到浏览器绘制的延迟。这个延迟不包含设备编码，
-不能冒充端到端测量。`FFMPEG` / `ADB` 环境变量可指定本机程序路径。
-
-投屏与场景输入可以同时运行，原始 PNG/OCR 证据继续独立保存；「实时视频 / 原图证据」
-切换只影响当前查看的内容。投屏画面经 JPEG 压缩用于预览，不能替代原始 PNG。
-「录制视频」复用同一浏览器视频画布，不再占用眼镜编码器；结束后可下载无声 MP4
-（浏览器不支持时降级 WebM），适合演示取材，不当作传感器或语音识别准确性的证明。
-结束录制后会自动写入本机 `device-output/recordings`，下载链接指向同一份已保存文件，
-避免内嵌浏览器无法下载 Blob 时丢失素材。保存失败会保留当前页面的原始 Blob；不要立即刷新。
-本地保存只接受 MP4/WebM，单份上限 64 MiB，并保留字节数和 SHA256 校验值。
-
-停止投屏、最后一个页面退出、视频断线或服务关闭会清理本机进程和本次眼镜编码进程；
-不会杀掉其他 `screenrecord`。Android 单次录制有时长上限，服务每 165 秒重新连接编码器，
-期间显示续接状态。投屏期间只在输入空闲时临时发唤醒事件，不修改持久常亮设置。
-
-```bash
-# 不依赖浏览器的同一真机执行器
-npm run e2e:device -- apps/immersive/iron-coach-aiui --list
-npm run e2e:device -- apps/immersive/iron-coach-aiui \
-  --serial 1901092534007858 \
-  --scenario device-progress-readonly --scenario device-settings-readonly \
-  --out /tmp/inklab-device-runs
-```
-
-`--device` 是服务端的显式开关；默认启动模拟器时不会探测或控制 ADB。多设备必须选择
-序列号。默认原图与 `run.json` 保存在系统临时目录 `inklab-device-runs/`；可用
-`--device-output DIR` 指定长期证据目录。真实设备内容可能含个人训练数据，应存到本地
-排除 Git 的目录。服务仅监听 `127.0.0.1`，控制请求要求同源与本次服务的 session token。
-
-工程真机场景放在 `e2e/device-scenarios/*.json`，复用原场景的声明式步骤：
-
-```json
-{
-  "id": "device-progress-readonly",
-  "title": "真实眼镜查询进度",
-  "device": {
-    "readOnly": true,
-    "requires": ["asr-text", "screenshot", "ocr"],
-    "steps": [
-      { "shot": "before" },
-      { "say": "今天练了几组了" },
-      { "expectText": {
-        "anyOf": [
-          { "all": ["今天", "动作", "完成", "组", "共", "次"] },
-          { "all": ["今天还没有完成的训练组"] }
-        ],
-        "none": ["练完再聊"]
-      } }
-    ]
-  }
-}
-```
-
-| 步骤 / 能力 | 真机口径 |
-| --- | --- |
-| `press` / `pressMany` / `activate` / `back` | 实际 ADB 按键和墙钟等待，不使用模拟器虚拟时间戳 |
-| `wait` | 最多 60 秒，停止请求每 250ms 检查一次 |
-| `say` | 1–180 UTF-8 字节；当前支持 IronCoach `GLASSES_DEV_CONTROL=true` 调试包，走原助手逻辑 |
-| `wake` | 重放已实测的 Rokid 触控板长按；可先验证聆听画面，再串行执行 `say` |
-| `shot` | 完整 ADB PNG，不裁切、不拼接环境、不重画文字；包含尺寸和 SHA-256 |
-| `expectText` | 本机 macOS Vision 从本次真实截图识别；`all` / `none` 字面匹配，`anyOf` 支持多个合法回复 |
-| 旧场景 `do` / `expect`、mock caps、seed、LLM cassette、传感器注入 | 预检为 unsupported，必须明确改写成可观察的真机步骤 |
-| 模型请求与 TTS 完播、麦克风识音质量 | 不能由按键发送和 OCR 证明；报告保留未验证边界 |
-
-报告分 `passed`、`failed`、`unsupported`、`pending-review`、`cancelled`。只有至少一条真实
-截图文字断言成立且其余步骤没有失败，才标 `passed`；纯按键/截图场景只记 `pending-review`。
-`passed` 仅覆盖场景声明的文案条件：进度示例验证合法回答与拒答回归，不凭固定历史数据
-声称数字永远正确。OCR 原文与置信度一起留在报告里，关键截图仍需人工复核。
-CLI 对通过返回 0，失败/中止返回 1，不支持或待复核返回 2。
-
-`say` 后立即进入截图观测，不固定等六秒：短回复可能已经收起。`expectText` 默认最多等
-10 秒、最多 12 次实际取图，每次间隔至少 500ms；所有尝试原图均保留，可用 `timeoutMs`
-调整到 0–60000ms。初始未命中不提前猜成功，超过观察窗口才给失败。
-
-铁面私教的 USB 文本编码与调试包准备见其
-[glasses-control.md](../../apps/immersive/iron-coach-aiui/docs/glasses-control.md)。
-其他 AIUI 工程可先使用按键与截图；文字输入需要该应用明确实现适配器，不能把普通按键
-发送当作语音注入成功。当前依赖 macOS 的 Vision OCR；其他系统仍能取图，自动文字断言
-会标不支持。
+安装、首次运行和引擎下载见 [README](../README.zh-CN.md)。本文讲工作台里有什么、各项宿主能力怎么控制、怎么写场景和跑测。
+USB 连真机见 [device.md](device.md)；实测出来的引擎行为与时序规律见 [runtime-notes.md](runtime-notes.md)，给应用写脚本之前先读。
 
 在本地跑 AIUI 工程或发布包：**源码目录与 `.aix` 都是一等输入，不上传，启动后不依赖外网**。
 
 ```bash
-npm run engine -- --matrix                   # 首次:按 lock 拉齐全部命名运行时
-npm start -- apps/immersive/iron-coach-aiui   # 起本地宿主
-npm start -- dist/aiui-packages/iron-coach-aiui.aix
-npm start -- apps/immersive/iron-coach-aiui \
-  --compare-with dist/aiui-packages/iron-coach-aiui.aix
-# 打开 http://127.0.0.1:8788/ ,改完源码自动热重载(服务端 fs.watch → SSE)
+npm run engine                               # 首次：去站点找引擎、生成 runtimes.lock.json 并下载（之后也可只点名一条 lane）
+npm start -- <app>                           # 源码目录
+npm start -- <app>.aix                       # 发布包
+npm start -- <app> --compare-with <app>.aix  # 源码对照发布包
+# 打开 http://127.0.0.1:8788/ ，改完源码自动热重载（服务端 fs.watch → SSE）
 ```
 
 ## 这是什么
@@ -136,27 +37,23 @@ InkLab 把同一个引擎接到我们自己的宿主上，并且**把宿主能�
 
 | 路径 | 作用 |
 | --- | --- |
-| `fetch-engine.mjs` | 拉取/校验单引擎或 `runtimes.lock.json` 的完整矩阵 |
-| `runtimes.lock.json` | **入库**。命名 lane 的来源、版本、glue/wasm sha256；默认仍保留旧基线 |
-| `engine.lock.json` | 旧单引擎 lock，兼容既有工具与历史证据 |
-| `.engine/` | **不入库**。默认引擎与 `.engine/runtimes/<id>/` 各 lane 二进制 |
-| `serve.mjs` | 本地宿主：统一读取源码目录/`.aix`、运行时与宿主页面 |
-| `host/` | 宿主页面 |
-| `lib/engine-source.mjs` | 引擎定位与版本解析（多构建择新） |
+| `bin/` | 命令行入口（薄壳）：`inklab`、`inklab-e2e`、`inklab-matrix`、`inklab-engine`、`inklab-device` |
+| `host/` | 宿主页面，在浏览器里跑：入口 `host/inklab.js`，按职责拆在 `host/inklab/*.js`；`host/device*` 是 USB 真机页 |
+| `lib/` | 浏览器与 Node 共用的纯逻辑和能力层，**不许 import `node:`**（`__tests__/boundaries.test.mjs` 守着） |
+| `lib/caps/` | **宿主能力层**——见下 |
 | `lib/bundle.mjs` | 源码目录 → bundle 文件表 + 工程预检 |
 | `lib/aix.mjs` | 直接读 `.aix` 包（对照线上、回归旧版用） |
-| `lib/project-source.mjs` | 源码/发布包统一快照、内容身份与文件差分 |
-| `lib/runtime-lock.mjs` | 运行时 registry、多选 URL 与旧 lock 兼容 |
-| `matrix.mjs` | 一条命令执行 runtime × lighting 矩阵并汇总 conformance/PNG 差异 |
-| `lib/caps/` | **宿主能力层**——见下 |
+| `lib/runtime-lock.mjs` | 运行时 registry 的校验与多选 URL 解析 |
 | `lib/driver.mjs` | 场景驱动：声明式脚本 + 时序配方 |
-| `scenarios/` | **内置通用**场景（目前只有冒烟）。应用专属场景是工程资产，放各工程 `e2e/scenarios/` |
-| `e2e.mjs` | **e2e 跑测 CLI**：内嵌服务 + 无头 Chrome + CDP，见下「e2e 跑测」 |
 | `lib/recording.mjs` | 主舞台画面录屏：canvas stream、MP4/WebM 择优、成片生命周期 |
 | `lib/shots.mjs` | 截图基线与像素 diff |
 | `lib/stamp.mjs` | 源码指纹（截图 stale 检测的依据） |
+| `lib/node/` | 只给 Node 用：`serve.mjs`（本地宿主）、`e2e.mjs` + `e2e-browser.mjs`（e2e 跑测：内嵌服务 + 无头 Chrome + CDP，见下「e2e 跑测」）、`matrix.mjs`（一条命令执行 runtime × lighting 矩阵并汇总 conformance/PNG 差异）、`fetch-engine.mjs` + `download.mjs`（引擎拉取与校验，另有 `cache-path.mjs`、`runtime-lock-file.mjs`、`engine-version.mjs`）、`project-source.mjs`（源码/发布包统一快照、内容身份与文件差分）、`device-*.mjs`（USB 真机） |
+| `runtimes.lock.json` | **不入库**（每个人不一样）。本机的 lane 清单：一个数组，每条记来源、版本、glue/wasm sha256；顺序即优先级，第一条是默认 lane。由 `npm run engine` 生成 |
+| `.engine/` | **不入库**。引擎缓存目录（`INKLAB_ENGINE_DIR` 可换位置）；各 lane 的二进制在 `.engine/runtimes/<lane id>/`（条目的 `cacheDir` 可指到别处） |
+| `scenarios/` | **内置通用**场景（目前只有冒烟）。应用专属场景是工程资产，放各工程 `e2e/scenarios/` |
 | `fixtures/cap-probe-app/` | AIUI 0.17 API/组件 conformance fixture（不是产品代码） |
-| `RUNTIME-NOTES.md` | **实测的引擎坑与时序规律，动手前必读** |
+| `docs/runtime-notes.md` | **实测的引擎坑与时序规律，动手前必读** |
 
 ## 宿主页面
 
@@ -167,9 +64,9 @@ InkLab 把同一个引擎接到我们自己的宿主上，并且**把宿主能�
   InkLab 工具外壳，不改写 InkView canvas 像素，所以不污染截图基线。
 - **运行时矩阵**：`runtimes.lock.json` 里的 lane 可多选，同页同时启动。每条 lane 都有独立
   glue module、WASM、InkView、宿主能力实例和 appId；默认把键盘、唤醒和脚本输入镜像到全部 lane。
-  当前锁有 Studio `0.16.1`、Studio `0.17.0-daily.202608251310` 和 InkLab 旧 daily 基线。
-  旧 daily 的 CDN 已回收，标记为 cache-only：有本地锁定缓存的机器继续可选；新机器会跳过它，
-  不影响两条 Studio lane 拉取和运行。
+  清单是你自己的：`npm run engine` 会把 Craft 与 AIUI Studio 两个站点上挂着的构建都记成 lane，
+  别的来源可以手动加（见下「引擎版本会漂」）。第一条 lane 是默认 lane；
+  本机没有它的缓存时改用别的已缓存 lane，并在启动日志里说明。
 - **每条 AIUI 画布 480×352**：键盘直接驱动（`↑`/`↓` 切焦点、`Enter` 执行、`Backspace` 返回）。
   焦点在控制台输入框里时键盘不生效——否则打字会把应用推着走。
 - **两种 Studio 口径**：默认「效果预览 · 黑底」为 480×352 normal blend；
@@ -216,7 +113,7 @@ await __inklab.stopRecording()     // 封口、预览并下载
 
 > ⚠️ 绕过宿主出口直接调 `view.dispatchInput(...)`，在**页面不可见**（后台标签页 / 窗口被完全遮挡）
 > 时**只有第一次生效**——引擎的帧调度是 rAF，页面一 hidden 就停摆。用 `__inklab.press` 没这问题。
-> 机理与自证配方见 RUNTIME-NOTES《焦点与帧》。
+> 机理与自证配方见 [runtime-notes.md](runtime-notes.md)《焦点与帧》。
 
 ### 主舞台录屏：给演示/PPT，不替代截图基线
 
@@ -261,7 +158,7 @@ await __inklab.stopRecording()     // 封口、预览并下载
 { "sensor": "accelerometer", "speed": 1, "samples": [{ "t": 0, "x": 0, "y": 9.81, "z": 0 }] }
 ```
 
-内置深蹲只用于流程和算法调试，不作为真实传感器质量证据。腕表六轴不走这张卡，使用上方
+内置深蹲只用于流程和算法调试，不作为真实传感器质量证据。外接设备（如腕表）的六轴数据不走这张卡，使用上方
 「蓝牙来源」里的「导入通知 trace」回放固件协议包；脚本入口仍是
 `playNotificationTrace(...)`。真实芯片、时序和断连行为继续由真机验收。
 
@@ -269,7 +166,7 @@ await __inklab.stopRecording()     // 封口、预览并下载
 
 - ASR 会中途自行 abort；`say()` 的 final **不**结束 session（`continuous:true` 下收口是应用自己的活）。
   `continuous:false` 的应用要靠这一轮真的结束才落定转写，脚本用 `endTurn()` 显式收尾——
-  给它一个单独的出口，是为了不让假体替应用做收口决定（看见崇左的 e2e 记了这条坑）
+  给它一个单独的出口，是为了不让假体替应用做收口决定（真实应用的 e2e 踩过这条）
 - TTS 的 `onend` 不可靠，所以默认**不**自动发 `synthesisEnd`
 - 传感器故障是**粘的**，要显式 clear——真机的权限拒绝不会自愈
 - 拍照默认有 1.5s 延迟——真机没有「瞬间返回」这回事
@@ -289,7 +186,7 @@ await __inklab.stopRecording()     // 封口、预览并下载
   其余媒体方法仍保持模拟。真正拍照时，只有应用在用户的按键/点击交互中调用
   `wx.media.createCameraContext().takePhoto()` 才会通过 `navigator.mediaDevices.getUserMedia()` 采一帧并
   立即停轨。返回值仍是 Craft/AIUI 使用的 `{data, mimeType}` 契约。
-- `e2e.mjs` 会强制把页面 URL 写成 `camera=mock`；即使传入的基础 URL 带
+- `lib/node/e2e.mjs` 会强制把页面 URL 写成 `camera=mock`；即使传入的基础 URL 带
   `camera=computer` 也会覆盖，防止无头 Chrome / CI 意外点亮真实摄像头。
 - 电脑摄像头验证的是浏览器宿主链路，不替代眼镜真机的镜头方向、权限、画质与时延验收。
 
@@ -318,7 +215,7 @@ InkLab 因此模拟的是浏览器对象树，不是一个虚构的 `hostCapabil
   宿主适配器只包装 `requestDevice` 的授权时序，不实现自己的 `scanDevices`：真实
   `BluetoothDevice` 必须由 ink_web 代理进 WASM/QuickJS，普通 JS scan handle 会丢失设备回调。
   是否可用取决于当前浏览器、系统蓝牙和安全上下文。
-- `e2e.mjs` 会强制覆盖为 `bluetooth=mock`，并核对 `navigator.bluetooth` 的实际对象
+- `lib/node/e2e.mjs` 会强制覆盖为 `bluetooth=mock`，并核对 `navigator.bluetooth` 的实际对象
   就是模拟器，避免 CI 意外触碰电脑蓝牙。
 
 ```js
@@ -344,7 +241,7 @@ trace.stop();
 
 ```json
 {
-  "deviceId": "inklab-ironcoach-wrist-1",
+  "deviceId": "inklab-wrist-1",
   "serviceUuid": "6f1d0000-8f5b-4c7e-9a21-4a19f2b4c001",
   "characteristicUuid": "6f1d0001-8f5b-4c7e-9a21-4a19f2b4c001",
   "frames": [
@@ -386,7 +283,7 @@ InkLab/Studio 里的“眼镜界面”是**混合模拟**：应用源码真的�
 ### 外域出网默认挡下（`caps/net.mjs` 的 `guardExternal`）
 
 本地宿主跑的是**真源码**，所以应用里任何一条硬编码的线上域名都会真的打到别人的生产后端。
-更麻烦的是它多半在**启动链路**里就发生了（看见崇左的 `applyLaunchEntry` 会 fire-and-forget
+更麻烦的是它多半在**启动链路**里就发生了（有的应用在启动入口里就会 fire-and-forget
 预取天气），那时候场景脚本一行都还没跑——**这道闸只能在能力层，场景层拦不住**；应用自己的
 实例级节流也拦不住，因为 e2e 每个场景都重建 InkView，每次都是「第一次」。
 
@@ -394,7 +291,7 @@ InkLab/Studio 里的“眼镜界面”是**混合模拟**：应用源码真的�
 「本轮零真实外呼」因此是可断言的——`caps.net.requests` 里不该有 `decision:'pass'` 的外域条目。
 
 - 优先级：断网 > 按 URL 的 block > 场景显式 `status()` 桩 > **外域闸** > 真出网。
-  也就是说场景显式桩过的 URL（如分享场景的 `/api/trips`）照常走它自己那一支，不受影响。
+  也就是说场景显式桩过的 URL（如分享场景的 `/api/share`）照常走它自己那一支，不受影响。
 - 放行走显式清单：`caps.net.allowExternal('域名或子串')`。LLM `live`/`record` 的上游端点由宿主自动放行
   ——那次出网是有意的。
 - 整道闸的开关：`?netguard=0`、控制台「网络」卡片的**挡外域**勾选框、或 `caps.net.guardExternal(false)`。
@@ -414,7 +311,7 @@ const result = await driver.runScenario([
 ]);
 ```
 
-时序配方来自实测（细节见 RUNTIME-NOTES）：**事件时间戳按虚拟时钟推进**跨过应用约 700ms 的
+时序配方来自实测（细节见 [runtime-notes.md](runtime-notes.md)）：**事件时间戳按虚拟时钟推进**跨过应用约 700ms 的
 同向去重闸，**换页后真实等待 ≥1.3s** 跨过约 1.2s 的激活冷却——后者跨不过去，只能等。
 
 应用专属的脚本放**工程自己的** `e2e/scenarios/*.mjs`（宿主页面下拉框与 e2e runner 自动加载，
@@ -428,7 +325,7 @@ export default {
 ```
 
 断言口径挑「应用真调了哪些宿主能力」而不是日志：引导是单页多步，步进**不产生**页面模块日志，
-拿日志判断有没有前进会得出错误结论（RUNTIME-NOTES 有记）。场景模块本身零浏览器 API，
+拿日志判断有没有前进会得出错误结论（[runtime-notes.md](runtime-notes.md) 有记）。场景模块本身零浏览器 API，
 `__tests__/inklab-host.test.mjs` 用一个假被测应用把键序与失败点都钉住了。
 
 ## e2e 跑测
@@ -444,21 +341,21 @@ export default {
 ```
 
 ```bash
-npm run e2e -- apps/immersive/iron-coach-aiui        # 跑工程全部场景（无头 Chrome）
+npm run e2e -- <app>                                 # 跑工程全部场景（无头 Chrome）
 npm run e2e -- <app> --accept                        # 把本次截图收为基线
 npm run e2e -- <app> --scenario onboarding-goal      # 点名跑（内置场景也可点名）
 npm run e2e -- <app> --no-video                      # 关掉逐场景舞台录屏（默认开）
 npm run e2e -- <app> --headed                        # 开窗跑，排障看画面
-npm run e2e -- <app> --runtime studio-canary         # 单条运行时，报告锁定版本/哈希
+npm run e2e -- <app> --runtime <lane>                # 单条运行时（清单里的 lane id），报告锁定版本/哈希
 npm run e2e -- <app> --preview optical \
   --lighting indoor-bright                           # 显式跑光照可读性假体
 npm run e2e -- dist/pkg.aix --scenario smoke \
-  --runtime studio-canary --report-dir /tmp/pkg-smoke # 发布包直接跑；包本身只读
+  --runtime <lane> --report-dir /tmp/pkg-smoke       # 发布包直接跑；包本身只读
 
 # 同一场景比较多个版本；加 --all-lighting 即跑版本 × 三种光照
 npm run matrix -- fixtures/cap-probe-app \
   --scenario aiui-017-conformance \
-  --runtime studio-stable,studio-canary --all-lighting
+  --runtime <lane>,<lane> --all-lighting
 ```
 
 ### 场景级 LLM 声明：on 与 off 一条命令一起跑
@@ -533,7 +430,7 @@ endpoint / headers / defaultModel，见 `lib/caps/llm.mjs` 头注）。InkLab �
 - 本地档还可配 `requestDefaults`（如思考型模型必配的 `{"enable_thinking": false}`——
   不关的话正文首 token 十几秒，赶不上应用自己的 8s 生成闸）：配了它页面会改走 serve 的
   `/llm/chat/completions` 转发路由，只**补引擎没写的字段**，显式字段绝不覆盖。
-  路由按 localhost 下发——引擎不向与页面同源的 endpoint 发请求（RUNTIME-NOTES 有记）。
+  路由按 localhost 下发——引擎不向与页面同源的 endpoint 发请求（[runtime-notes.md](runtime-notes.md) 有记）。
 - 模式走 URL 参数 `?llm=off|live|record|replay`（e2e runner 用 `--llm` 传；e2e 里还可以**按场景**
   声明，见上面「场景级 LLM 声明」）。自动 runner 用 URL + 完整 `Page.navigate` 隔离场景；
   `__inklab.setLlm()` + `reload()` 只保留给手动调试。缺省：
@@ -579,28 +476,77 @@ endpoint / headers / defaultModel，见 `lib/caps/llm.mjs` 头注）。InkLab �
 ## 引擎从哪来，以及为什么不入库
 
 `ink_web` 是 Rokid 的私有产物：**没有开源许可声明，也没有发布到 npm**（npm 上的 `ink-web`
-是无关的 CLI 库），只作为 `js.rokid.com` 的站点资源存在。
+是无关的 CLI 库），只作为 Rokid 站点（`js.rokid.com`、`aiui.rokid.com`、`static.rokidcdn.com`）上的资源存在。
 
-我们做的事是：把浏览器打开 Craft 时**本来就会下载的同一份文件**放到本地，用来调试**我们自己的
-智能体**。因此：
+我们做的事是：把浏览器打开 Craft / AIUI Studio 时**本来就会下载的同一份文件**放到本地，用来调试**自己的应用**。因此：
 
-- **二进制绝不入库、绝不随工具分发。** `.engine/` 已进 `.gitignore`。
-- 仓库里只留 `engine.lock.json`（版本 + 哈希），任何人跑一次 `npm run engine` 自取。
+- **二进制绝不入库、绝不随工具分发。** 它们只存在于本机的 `.engine/`（已被 git 忽略），不在仓库里，也不在 npm 包里。
+- 每个人取到哪些引擎、用哪一条都不一样，所以记录它们的 `runtimes.lock.json`（每条 lane 的来源、版本和 glue/wasm 的 SHA-256）
+  也是本机文件，不入库。`npm run engine` 生成并维护它；取回的字节必须与清单逐字节一致，否则报错、不落盘。
 - 要把 InkLab 分享出去，也只能分享代码，不能附带 wasm。
+
+```bash
+npm run engine                    # 先查站点、追加新构建（没有清单就从这一步生成），再拉取清单里的全部 lane；本地文件与清单一致的直接跳过
+npm run engine -- <lane>          # 同样先查站点，只拉指定的 lane（可写多个）
+npm run engine -- --check         # 只校验盘上文件与清单是否一致（不发网络请求，也不查站点）
+npm run engine -- --discover      # 只读：看会追加什么，不写任何文件
+```
+
+下载某个文件 30 秒收不到数据会中止并重试（最多三次），并显示速度与剩余时间。
 
 ## 引擎版本会漂
 
-Craft 同时挂着不止一个构建（实测 `0.16.1` 正式版与 `0.17.0-daily.202608180107` 并存，
-运行时由 `satisfiesInkEngine()` 按工程声明的引擎区间择一）。取引擎脚本会：
+Rokid 的站点同时挂着不止一个构建（实测过 `0.16.1` 正式版与 `0.17.0-daily` 并存），内容也会随站点发版而换。
+所以每条 lane 都是**不可变的**：id、来源、版本和哈希一起锁定，覆盖升级会让旧截图和旧行为失去复现条件。
+InkLab 不会悄悄换引擎：取回的字节与清单不一致就停下，并指出是 glue 还是 wasm 不符。
 
-1. 列出全部候选 glue，用 HTTP Range 只取各自 wasm 尾部读版本（不全量下载）；
-2. 取版本最新的那个；
-3. 与 `engine.lock.json` 比对——**不一致就停下并列出差异**，不会悄悄换引擎。
+`runtimes.lock.json` 就是一个 lane 数组，顺序即优先级，**第一条是默认 lane**（想换默认，把它挪到最前面）。
+站点上新出现的构建，`npm run engine` 每次运行都会发现，并追加成新 lane：
 
-```bash
-npm run engine -- --update   # 接受漂移并写入新 lock
-npm run engine -- --check    # 只校验盘上引擎与 lock 是否一致(不发网络)
-```
+1. 查站点。默认查官方的两个平台，Craft（`https://js.rokid.com/craft`）和 AIUI Studio（`https://aiui.rokid.com/`），
+   各自顺着找出站点上挂着的全部引擎构建，用 glue 的 SHA-256 与清单里已有的 lane 比对。
+   `--site=[<名字>=]<url>` 可以换站点，写几个查几个（给了就不再查默认的两个）；名字是新 lane `id` 的前缀，不写就是 `craft`。
+   每次运行要取两个站点的首页、主 bundle 和几个候选 chunk 来对比（都是 JS，不含体积大的 wasm），没有新构建时不会下载 wasm。
+2. 没被收录的构建：取回 wasm 算哈希、读版本，在数组**末尾追加**一条，并把已经取回的文件放进 `.engine/`（不会再下一遍）。
+   `id` 是平台名加版本，如 `craft-0.19.0-daily.202609230326`、`studio-0.19.0-daily.202610080438`；同版本不同字节时接上 glue 哈希的前 8 位。
+   已收录与否按 glue 的哈希认，所以两个平台发布的 glue 只要字节不同，同一个引擎版本在两边都发布的话也会各记一条。
+   全新 clone 没有清单，是从空清单起步的：这时正式版排在 daily 前面，所以第一条（默认）是正式版。
+3. 然后照常按清单装配 `.engine/`。
+
+只追加，不改已有条目；追加前先校验整份清单仍然合法，写入也是先写临时文件再改名。
+每个新 daily 都会多一条 lane，`npm run engine` 和 `matrix` 默认处理全部 lane（`matrix` 可以用 `--runtime` 点名）。
+站点上还挂着的构建，删掉它的条目后下次运行会被重新追加。
+
+想用自己的名字，改新条目的 `id` / `label` 就行，`cacheDir` 保持原样、缓存不用动：已收录与否按 glue 的哈希认，
+不按名字；基线指纹也只取决于引擎构建，改名不会让基线失效。
+
+有一点要清楚：**新构建是“首次所见即信任”**。它的哈希是取回那一刻记下的，此后每次下载都必须与之一致；
+但如果站点第一次给的就是被换过的东西，InkLab 看不出来。清单里原有的 lane 不受影响。
+
+两个站点各查各的：某个站点查不了（断网、站点结构变了）只警告，另一个照常查，然后照常按现有的清单装配；
+没有清单又一个站点都查不了时没有东西可装配，命令报错并提示联网重试，不会创建任何文件。想先看看会追加什么、又不写任何文件，用 `--discover`：
+退出码全部已收录为 `0`，发现未收录的构建为 `2`，没能查完（某个候选 chunk 取不到，或某个站点没查成）为 `1`。
+
+清单是 JSON，**手写时漏一个逗号**会得到“不是合法的 JSON”并指出文件，不会被当成“没有运行时”；
+还是旧格式的 `{ "runtimes": [...] }` 对象也会被明确拒绝，改成直接的数组即可。
+
+自动检查认的是 Craft 和 AIUI Studio 两个站点的页面结构，而且只收有独立 glue 文件的构建：引擎内联在主 bundle 里的发布方式没有 glue 文件可记，
+InkLab 看不到它，也没法把它记成 lane。自动认不出、但有独立 glue 和 wasm 的**其他来源**（别的站点、站点改版之后）就手工来：
+
+1. 在浏览器里打开 Craft 或 AIUI Studio，用开发者工具的 Network 面板找到 `ink_web_bg-*.wasm`，记下完整 URL。
+   glue 是引用了这个 wasm 的 JS 文件（里面同时有 `ink_web_bg-….wasm`、`createInkView` 和 `initInk`，文件名通常是 `index-*.js`），同样记下 URL。
+2. 下载这两个文件，用 `shasum -a 256` 算出哈希。
+3. 版本从 wasm 里读（锚点法，见 `lib/node/engine-version.mjs`），输出的 `version` / `build` 分别对应 lock 里的 `engineVersion` / `engineBuild`（没有 daily 构建戳时 `build` 为 `null`）：
+
+   ```bash
+   node --input-type=module -e "import { readFileSync } from 'node:fs'; import { extractEngineVersion } from './lib/node/engine-version.mjs'; console.log(extractEngineVersion(readFileSync(process.argv[1])))" engine.wasm
+   ```
+
+4. 在 `runtimes.lock.json` 这个数组里加一条（加在末尾；想让它当默认 lane 就放最前面），字段有 `id`、`label`、`channel`、`cacheDir`、`source`、`fetchedAt`、
+   `engineVersion`、`engineBuild`、`glueUrl`、`glueSha256`、`wasmUrl`、`wasmSha256`。
+   必填的是 `id`、`engineVersion`（或 `engineBuild`）、`glueSha256`、`wasmSha256`；要能下载还得有 `glueUrl`、`wasmUrl`；其余可省。
+   源站已经下线、只认本机已有文件的 lane 加 `cacheOnly: true`：它不会被下载，本机缺文件时只跳过，`matrix` 默认也不跑它。
+   然后跑 `npm run engine -- <新 lane id>`，它会按这份清单下载并核对哈希与版本。
 
 ## 边界
 
@@ -609,5 +555,5 @@ InkLab 用的是和 Craft 同一个引擎，所以**它替代的是证据阶梯�
 InkLab 的 BLE 模拟只覆盖应用状态机与协议处理。
 
 已知引擎 Web 全局**不提供** `BarcodeDetector`（实测 `typeof` 为 `undefined`），但当前引擎仍向
-静态 `barcode` 宿主模块提供构造器。铁面私教场景实际验证的是“取帧、检码但无有效 payload →
-手选器械”；二维码成功识别与能力完全缺失分支仍需 Craft / 真机或后续专用宿主夹具取证。
+静态 `barcode` 宿主模块提供构造器。所以模拟环境里能验证的是“取帧、检码但无有效 payload”这条分支；
+二维码成功识别与能力完全缺失分支仍需 Craft / 真机或后续专用宿主夹具取证。

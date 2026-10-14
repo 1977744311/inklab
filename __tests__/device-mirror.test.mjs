@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { createDeviceMirror, createJpegFramer, mirrorFps, screenrecordCommand, remoteMirrorCleanup } from '../lib/device-mirror.mjs';
+import { createDeviceMirror, createJpegFramer, mirrorFps, screenrecordCommand, remoteMirrorCleanup } from '../lib/node/device-mirror.mjs';
 
 test('JPEG stream framing survives split markers and multiple frames per chunk', () => {
   const frames = [];

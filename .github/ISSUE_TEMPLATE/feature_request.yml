@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest a capability, fake, scenario step or workbench feature.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do with your AIUI app, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What InkLab could do. Include engine or AIUI API names if the feature depends on them.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

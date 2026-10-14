@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer, request } from 'node:http';
 import { createHash } from 'node:crypto';
-import { createDeviceService, createDeviceHandler, readDeviceConfig, loadDeviceScenarios, parseAdbDevices, pngMetadata, MAX_DEVICE_RECORDING_BYTES } from '../lib/device-service.mjs';
-import { parseDeviceArgs } from '../device-e2e.mjs';
+import { createDeviceService, createDeviceHandler, readDeviceConfig, loadDeviceScenarios, parseAdbDevices, pngMetadata, MAX_DEVICE_RECORDING_BYTES } from '../lib/node/device-service.mjs';
+import { parseDeviceArgs } from '../lib/node/device-e2e.mjs';
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRZkAAAAASUVORK5CYII=', 'base64');
 const vision = { status: async () => ({ available: true }), read: async () => ({ status: 'available', text: '完成3组' }) };

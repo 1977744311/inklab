@@ -190,7 +190,7 @@ test('endTurn：这一轮说完了，识别器自然收尾（完整尾巴，和�
   speech.endTurn();
 
   // 完整尾巴：与 abortMidway 的残尾（无 audioend）区分开——只在 end 里落定转写的应用
-  // （看见崇左的 AssistantRouter）靠这一拍才执行，拿 abort 冒充会把两种现场混成一种。
+  // （某真实应用的助手路由）靠这一拍才执行，拿 abort 冒充会把两种现场混成一种。
   assert.deepEqual(bus.names(), [
     'speech.speechend', 'speech.soundend', 'speech.audioend', 'speech.end',
   ]);
