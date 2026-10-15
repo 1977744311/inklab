@@ -178,7 +178,7 @@ export function setSourceBadge(info) {
 
 export async function bootStage({
   id, runtime, canvas, width, height, scaleFactor, primary, files, info, mod, llm, cameraMode,
-  bluetooth, bluetoothMode,
+  bluetooth, bluetoothMode, mockAudioCaptureEnabled = false,
 }) {
   setRuntimeStatus(id, '初始化 InkView…');
   const eventCounts = new Map();
@@ -211,6 +211,7 @@ export async function bootStage({
   const dispatchEvent = (name, detail) => { rawDispatch(name, detail); pump(view); };
   const caps = createHostCapabilities({
     dispatchEvent,
+    media: { allowImplicitAudioStreams: mockAudioCaptureEnabled },
     // 工程场景可直接复用自身 assets 作为拍照 fixture；404 不得被当照片字节。
     readFile: (name) => readProjectFile(name, hostFetch),
     fetch: hostFetch,             // live/record 时 LLM 的上游、以及非 LLM 请求的透传出口

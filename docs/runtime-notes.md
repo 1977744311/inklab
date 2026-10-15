@@ -6,6 +6,24 @@
 
 ---
 
+## 0.18 / 0.19 流式 ASR（2026-10-15 实测）
+
+0.18 引擎识别先查询 `speech.getRecognitionCapabilities`，再通过浏览器原生
+`getUserMedia({ audio: ... })` 取得音轨；这一步绕过了 `media.getUserMedia`
+宿主方法。之后它用自己的 stream ID 创建 WAV 录音器，收到
+`media.mediaRecorderStarted` 和首段 PCM 后才调用 `speech.openRecognitionStream`。
+只补 speech 方法会仍然卡在麦克风申请或等待首帧。
+
+InkLab 给纯音频请求提供空音轨，并只在该模拟安装成功时允许 WAV 录音器接管
+引擎内部 stream ID。录音器的 640 字节原始 PCM 由引擎编码成 684 字节 WAV；
+宿主不能再次添加 WAV 头。`speech.say()` 仍负责文字结果，`endTurn()` 负责结束；
+新流式请求不会把上传音频误当成真实识别，也不会在首段音频后提前结束会话。
+销毁工程会停止空音轨、清理录音器定时器并恢复浏览器原有采集方法。
+
+通用回归场景：
+`npm run e2e -- fixtures/cap-probe-app --scenario asr-stream --runtime craft-0.18.0 --no-video`。
+它连续识别两轮并检查结果与录音器释放；旧引擎可用同一场景验证兼容性。
+
 ## 焦点与帧：两个「程序化输入推不动」的真凶（2026-08-26 实测）
 
 用脚本驱动应用时，曾遇到“切到后台标签页后按键失效”和“点击工作台按钮后语音唤醒失效”两个问题，实测排查出的真正原因如下：

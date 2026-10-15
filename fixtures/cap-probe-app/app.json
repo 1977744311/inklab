@@ -1,4 +1,5 @@
 {
   "pages": ["pages/home/index", "pages/components/index"],
+  "permissions": ["RECORD_AUDIO"],
   "window": { "navigationBarTitleText": "AIUI 0.17 Conformance" }
 }

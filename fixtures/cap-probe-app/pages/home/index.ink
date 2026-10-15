@@ -42,10 +42,31 @@ export default {
 
   onUnload() {
     this.alive = false;
+    if (this.recognizer) this.recognizer.abort();
     if (this.componentTimer) clearTimeout(this.componentTimer);
     if (this.batteryManager && this.batteryListener) {
       this.batteryManager.removeEventListener('levelchange', this.batteryListener);
     }
+  },
+
+  onVoiceWakeup() {
+    // Keep the generic API probe visible while testing recognition transport.
+    if (this.componentTimer) clearTimeout(this.componentTimer);
+    if (this.recognizer) this.recognizer.abort();
+    const recognition = new SpeechRecognition();
+    this.recognizer = recognition;
+    recognition.onstart = () => {
+      this.setData({ hintText: 'ASR: listening (simulated audio)' });
+      log('asr-start');
+    };
+    recognition.onresult = event => {
+      const text = String(event.results[0][0].transcript);
+      this.setData({ hintText: `ASR: ${text}` });
+      log('asr-result', text);
+    };
+    recognition.onerror = event => log('asr-error', event.error);
+    recognition.onend = () => log('asr-end');
+    recognition.start();
   },
 
   onHeadGesture(event) {

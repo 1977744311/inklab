@@ -13,6 +13,8 @@
 - **Hot reload** — edit the source and the page reloads automatically via a file watcher.
 - **Runtime lanes side by side** — run the same app on several pinned engine builds at once to compare renders; keyboard and scripted input are mirrored to every lane.
 - **Realistic hardware simulation** — inject speech (ASR/TTS), camera photos, IMU sensor traces, battery levels, BLE devices, network failures and LLM responses (live, recorded or replayed). The simulators intentionally reproduce real-device edge cases (ASR aborting mid-turn, camera shutter delay, sticky sensor permission faults) rather than an idealised contract.
+
+  Speech simulation supports both legacy recognition and the streaming transport used by 0.18+ engines. Audio-only capture uses an inert local track and mock PCM frames, without requesting microphone access; transcripts still come from injected text. This verifies application behavior, not acoustic recognition quality.
 - **Automated scenarios and screenshot baselines** — declarative JS scripts (key presses, waits, screenshots, assertions) run interactively in the browser or headless in CI. Baselines carry a fingerprint of the source and engine, so outdated baselines are flagged as `stale` instead of silently passing.
 - **Test reports and stage recording** — export `run.json` (source identity, engine hashes, timeline, network log, artifacts) and record the stage canvas as MP4/WebM.
 - **Optional: real glasses over USB** — capture screenshots, stream a live mirror and run read-only scenarios through `adb`. See [docs/device.md](docs/device.md) (Chinese).
