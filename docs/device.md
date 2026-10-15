@@ -98,7 +98,7 @@ node <controlScript> <command> [value] --serial <序列号> --wait-ms <毫秒> [
 
 | 步骤 / 能力 | 在真机上的执行方式 |
 | --- | --- |
-| `press` / `pressMany` / `activate` / `back` | 发送真实 ADB 按键并按真实时间等待（不使用模拟器的虚拟时间戳加速） |
+| `press` / `pressMany` / `activate` / `back` | 发送真实 ADB 按键并按真实时间等待；可用 `waitMs` 指定每次输入后的等待，`pressMany` 对每一击生效，不使用模拟器的虚拟时间戳加速。 |
 | `wait` | 真实等待指定毫秒数（上限 60 秒） |
 | `say` | 发送 1–180 字节的 UTF-8 文本；要求应用在 `inklab.device.json` 中开启 `asrText: true` |
 | `wake` | 模拟镜腿触控板长按唤醒；支持先截图确认进入聆听状态，再接着执行 `say` |
