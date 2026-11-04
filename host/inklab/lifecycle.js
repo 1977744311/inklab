@@ -6,7 +6,7 @@ import { runtimeDisplayVersion } from '/host/lib/runtime-lock.mjs';
 import { SCENARIOS } from '/scenarios/index.mjs';
 import { $, boot, esc, panes } from '/host/inklab/dom.js';
 import { engineLog } from '/host/inklab/engine-log.js';
-import { bluetoothController, bluetoothTrace, evidenceLedger, hostFetch, state } from '/host/inklab/state.js';
+import { bluetoothController, bluetoothTrace, evidenceLedger, hostFetch, hostWebSocket, state } from '/host/inklab/state.js';
 import { refreshInspector, refreshNetState } from '/host/inklab/inspector.js';
 import {
   refreshRecordingState, stageRecorder, stopRecordingTicker, stopStageRecording,
@@ -50,6 +50,7 @@ export async function start() {
     try {
       for (const st of state.stages) disposeStage(st);
       globalThis.fetch = hostFetch;
+      globalThis.WebSocket = hostWebSocket;
       // A native notification subscription outlives the destroyed Ink instance.
       // Close the real GATT transport immediately after teardown so 50-60 Hz IMU
       // events cannot keep targeting the old, disconnected QuickJS channel. The
@@ -123,7 +124,7 @@ export async function start() {
           boot(`[${esc(id)}] 引擎 <span class="acc">ink_web ${esc(mod.getInkVersion())}</span>（锁定本地 wasm）`, 'ok');
           const stage = await bootStage({
             id, runtime, canvas: canvasForRuntime(id), width: 480, height: 352,
-            scaleFactor: window.devicePixelRatio || 2, primary: state.stages.length === 0,
+            scaleFactor: Number(new URLSearchParams(location.search).get('player-count')) > 1 ? 1 : (window.devicePixelRatio || 2), primary: state.stages.length === 0,
             files, info, mod, llm: llm.opts, cameraMode: state.cameraMode,
             bluetooth: state.bluetooth, bluetoothMode: state.bluetoothMode,
           });
@@ -164,8 +165,8 @@ export async function start() {
           + '内置 InkLab Heart Rate，也可用 <code>__inklab.bluetooth.replaceDevices(...)</code> 换业务协议', 'dim');
       }
       boot(main.caps.net.isExternalGuarded()
-        ? '外域出网：<span class="acc">默认挡下</span>（不同源一律 503，日志里记 external-stub）。'
-          + '要打真后端：<code>?netguard=0</code> 或 <code>__inklab.caps.net.allowExternal(&#39;域名&#39;)</code>'
+        ? '外域出网：<span class="acc">默认挡下</span>（未放行外域返回 503，日志里记 external-stub）。'
+          + '用 CLI、inklab.config.json 或网络控件添加放行模式'
         : '外域出网：<span class="err">放行</span>（?netguard=0）——应用里硬编码的线上域名会真的打出去', 'dim');
       if (llm.mode === 'off') {
         boot('LLM：off（没配 endpoint）。应用会走它自己的离线路径；要接真模型设 INKLAB_LLM_* 环境变量', 'dim');
@@ -176,15 +177,6 @@ export async function start() {
           + `${llm.mode === 'replay' ? ` · 录像 ${esc(llm.cassettePath)}（${main.caps.llm.recordings.length} 条）` : ''}`, 'ok');
       }
 
-      // 每条 lane 对应一个独立 glue module，因此各自安装拦截器；浏览器 fetch 最外层仍由主 lane
-      // 统一把关，保证默认外域 503 与 LLM record/replay 的安全边界只有一个权威出口。
-      for (const stage of state.stages) {
-        stage.caps.net.attachView(stage.view);
-        stage.uninstallNet = stage.caps.net.install(stage.mod);
-      }
-      // fetch 链：net 拦截（断网/按 URL 故障）→ LLM 拦截（转发/录制/回放）→ 原始 fetch。
-      // net 在外层，断网时 LLM 一起断（与真机一致）；llm off 时不进链，别白挂一层。
-      globalThis.fetch = main.caps.net.wrapFetch(llm.mode === 'off' ? hostFetch : main.caps.llm.fetch);
       refreshNetState();
 
       refreshHeaderMeta();
@@ -208,6 +200,11 @@ export async function start() {
 
 export function connectWatch() {
   const badge = $('watch-state');
+  const owner = window.parent !== window ? window.parent : window.opener;
+  if (owner?.__inklab?.players?.length > 1) {
+    badge.textContent = 'watch 由网格共享';
+    return;
+  }
   let es;
   try { es = new EventSource('/api/watch'); } catch { badge.textContent = 'watch 起不来'; return; }
   es.addEventListener('hello', (ev) => {

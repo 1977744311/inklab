@@ -15,7 +15,7 @@ import {
 import { instrumentCapabilities } from '/host/lib/evidence.mjs';
 import { $, boot, esc, write } from '/host/inklab/dom.js';
 import { pump } from '/host/inklab/frame.js';
-import { evidenceLedger, hostFetch, state } from '/host/inklab/state.js';
+import { evidenceLedger, hostFetch, hostWebSocket, state } from '/host/inklab/state.js';
 import { sendInput, snapshot, wake } from '/host/inklab/input.js';
 import { refreshInspector } from '/host/inklab/inspector.js';
 import { netGuardEnabled } from '/host/inklab/project.js';
@@ -58,7 +58,8 @@ export function renderRuntimePicker(info) {
 
 export function selectedRuntimeRows(info) {
   const checked = new Set([...$('runtime-picks').querySelectorAll('input:checked')].map((input) => input.value));
-  const rows = (info?.runtimes || []).filter((runtime) => runtime.available && checked.has(runtime.id));
+  let rows = (info?.runtimes || []).filter((runtime) => runtime.available && checked.has(runtime.id));
+  if (new URLSearchParams(location.search).has('player')) rows = rows.slice(0, 1);
   if (rows.length) return rows;
   const fallback = (info?.runtimes || []).find((runtime) => runtime.available && runtime.id === info.runtimeDefault)
     || (info?.runtimes || []).find((runtime) => runtime.available);
@@ -180,6 +181,7 @@ export async function bootStage({
   id, runtime, canvas, width, height, scaleFactor, primary, files, info, mod, llm, cameraMode,
   bluetooth, bluetoothMode,
 }) {
+  const fleet = Number(new URLSearchParams(location.search).get('player-count') || 1);
   setRuntimeStatus(id, '初始化 InkView…');
   const eventCounts = new Map();
   canvas.style.width = `${width}px`;
@@ -208,7 +210,12 @@ export async function bootStage({
   // 能力事件注入后立刻 pump——与输入路径同一纪律（文件头第 1 条）。不 pump 的话，
   // 注入的转写/传感器事件推进了应用状态，但换页/重绘要等 rAF；无头或被遮挡时 rAF
   // 不可靠，实测表现为「回执播了但导航丢了」这类时好时坏。
-  const dispatchEvent = (name, detail) => { rawDispatch(name, detail); pump(view); };
+  const dispatchEvent = (name, detail) => {
+    rawDispatch(name, detail);
+    // Multiplayer sensor streams are consumed by the 20fps pump, rather than
+    // making six 60Hz sensors each force a full synchronous render burst.
+    if (fleet <= 1 || !/\.reading$/.test(name)) pump(view, fleet > 1 ? 1 : undefined);
+  };
   const caps = createHostCapabilities({
     dispatchEvent,
     // 工程场景可直接复用自身 assets 作为拍照 fixture；404 不得被当照片字节。
@@ -223,7 +230,7 @@ export async function bootStage({
     net: {
       guardExternal: netGuardEnabled(),
       externalOrigin: location.origin,
-      allowExternal: llmAllowExternal(llm),
+      allowExternal: [...(info.config?.allowExternal || []), ...(state.manualAllowExternal || []), ...llmAllowExternal(llm)],
     },
   });
   // 仅把模拟器控制面挂给场景/控制台；引擎的调用仍走 navigator.bluetooth。
@@ -269,20 +276,28 @@ export async function bootStage({
   // 副舞台换个 appId：应用存档的落点没定位到（不在 localStorage，推断在 wasm 线性内存/OPFS），
   // 两块画布用同一个 appId 有互相踩存档的风险，换一个最省事。
   const appId = `${info.appId}--runtime-${runtime.id}`;
-  view.openBundle({ appId, files: mod.normalizeBundleFiles(files) });
+  caps.net.attachView(view);
+  const uninstallNet = caps.net.install(mod);
+  if (primary) {
+    globalThis.fetch = caps.net.wrapFetch(llm?.mode === 'off' || !llm ? hostFetch : caps.llm.fetch);
+    globalThis.WebSocket = caps.net.wrapWebSocket(hostWebSocket);
+  }
+  view.openBundle({ appId, hostOptions: { initialTarget: '_blank' }, files: mod.normalizeBundleFiles(files) });
   // startRendering 起持续渲染循环（rAF）。页面不可见时它会停，程序化输入靠 pump 兜底。
-  view.startRendering?.();
+  // One 20fps pump per realm keeps six WASM engines within a laptop's budget.
+  if (fleet <= 1) view.startRendering?.();
 
   const stage = {
-    id, runtime, mod, primary: Boolean(primary), canvas, view, caps, probe, dispatchEvent,
+    id, runtime, mod, uninstallNet, primary: Boolean(primary), canvas, view, caps, probe, dispatchEvent,
     hostCapabilities, cameraMode, computerTakePhoto, bluetooth, bluetoothMode,
     width, height, scaleFactor, appId,
   };
   stage.previewCanvas = canvas.parentElement.querySelector('.preview-composite');
   drawStagePreview(stage);
   stage.previewTimer = setInterval(() => {
+    if (fleet > 1) view.render();
     if (!document.hidden) drawStagePreview(stage);
-  }, 1000 / 30);
+  }, 1000 / (fleet > 1 ? 20 : 30));
   setRuntimeStatus(id, `运行中 · ${width}×${height} @${scaleFactor}`, 'ok');
   evidenceLedger.record('runtime.ready', {
     runtime: runtime.id, version: runtimeDisplayVersion(runtime), appId, width, height, scaleFactor,

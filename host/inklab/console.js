@@ -342,6 +342,14 @@ export function wireConsole() {
   $('asr-error').onclick = guardStages((c) => c.speech.errorOut('no-speech', 'InkLab 注入'), '已发 error:no-speech');
   $('asr-abort').onclick = guardStages((c) => c.speech.abortMidway(), '已模拟 ASR 中途 abort（真机会这样）');
 
+  $('net-allow-add').onclick = () => {
+    const pattern = $('net-allow-pattern').value.trim();
+    if (!pattern) return;
+    state.allowExternal(pattern);
+    $('net-allow-pattern').value = '';
+    refreshInspector();
+  };
+  $('cache-clear').onclick = () => state.clearCache();
   $('net-off').onclick = guardStages((c) => c.net.offline(), '已断网：拦截器 block + connectivity offline');
   $('net-on').onclick = guardStages((c) => c.net.online(), '已恢复联网');
   $('net-guard').checked = netGuardEnabled();

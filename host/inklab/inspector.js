@@ -84,7 +84,13 @@ export function refreshNetState() {
   if (!caps) return;
   const on = caps.net.isOnline();
   const badge = $('net-state');
-  badge.textContent = on ? 'online' : 'offline';
+  const status = caps.net.networkState();
+  const open = status.ws.filter((s) => s.state === 1).length;
+  const connecting = status.ws.filter((s) => s.state === 0).length;
+  badge.textContent = `${on ? 'online' : 'offline'} · WS ${open ? `已连接 ${open}` : connecting ? '连接中' : '已断'}`
+    + (status.downloads.length ? ' · 下载 ' + status.downloads.map((d) => d.total
+      ? Math.round(d.received / d.total * 100) + '%' : Math.round(d.received / 1024) + 'KB').join(' / ') : '');
+  $('net-allow-list').textContent = '已放行：' + (caps.net.rules().filter((r) => r.kind === 'allow').map((r) => r.pattern).join('、') || '无');
   badge.className = `pill ${on ? 'ok' : 'err'}`;
 }
 
@@ -226,6 +232,7 @@ function detailRows(rows, summary) {
 
 export function refreshInspector() {
   if (!$('pane-network')) return;
+  refreshNetState();
   const network = networkEvidence();
   $('pane-network').innerHTML = detailRows(network, (row) => (
     `<span class="acc">${esc(row.lane)}</span> ${esc(row.method || '')} ${esc(row.url || '')}`

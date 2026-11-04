@@ -193,6 +193,10 @@
     .ble-fields{grid-template-columns:1fr}.ble-fields .bar:last-child{grid-column:auto}
     .control-nav{overflow-x:auto}.section-label small{display:none}
   }
+  body.player-embedded .app-shell,body.player-embedded #workspace,body.player-embedded #left,body.player-embedded .preview-panel{display:block;height:100%;padding:0;border:0}
+  body.player-embedded #topbar,body.player-embedded #right,body.player-embedded #left> :not(.preview-panel),body.player-embedded .panel-head,body.player-embedded .preview-toolbar,body.player-embedded .stage-head,body.player-embedded .stage-meta{display:none!important}
+  body.player-embedded #stages{height:100%;padding:0;overflow:hidden}
+  body.player-embedded .stage{max-width:none;min-width:0;gap:0}
 </style>
 </head>
 <body>
@@ -381,13 +385,15 @@
           <button id="net-on">恢复</button>
           <button id="net-log">看请求日志</button>
           <span id="net-state" class="pill">online</span>
-          <label class="chk" title="不同源的请求一律回 503 且不真的出去（日志里记 external-stub）。关掉才会真的打到线上后端。">
+          <label class="chk" title="未放行的外域 fetch 回 503、WS 拦截且不出网（日志里记 external-stub）。关掉才会真的打到线上后端。">
             <input type="checkbox" id="net-guard" checked> 挡外域
           </label>
         </div>
+        <div class="bar"><input type="text" id="net-allow-pattern" placeholder="URL 模式，如 tonedom.com" aria-label="放行模式"><button id="net-allow-add">放行</button><button id="cache-clear">清下载缓存并重载</button></div>
+        <div id="net-allow-list" class="dim"></div>
         <div class="hint">断网 = 拦截器 block + 连通性事件 offline；宿主自己取源码的那条 fetch 不受影响。
           「挡外域」默认开：应用里硬编码的线上域名（启动预取这类）会在你按任何按钮之前就打出去，
-          默认挡下既是隐私边界也是跑测的稳定前提；要放行单个域名用 <code>__inklab.caps.net.allowExternal('域名')</code>。</div>
+          用上面的放行模式或启动配置放行真实后端；规则同时覆盖 fetch 和 WebSocket。</div>
       </div>
 
       <div class="card control-card card-wide" data-control-group="sensors">
@@ -501,6 +507,6 @@
   </aside>
     </div>
   </div>
-  <script type="module" src="/host/inklab.js"></script>
+  <script type="module" src="/host/entry.js"></script>
 </body>
 </html>

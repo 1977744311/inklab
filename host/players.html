@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>InkLab · 多玩家</title>
+<link rel="stylesheet" href="/host/players.css">
+<header>
+  <strong>InkLab · 多玩家</strong><span id="focus-label">玩家 1</span>
+  <span>点画面选玩家 · Alt+1…6 切换 · Tab 下一位</span>
+  <button id="controls">当前玩家控制台</button>
+  <button id="cache-current">清当前下载缓存</button><button id="cache-all">清全部下载缓存</button>
+</header>
+<nav>
+  <label><input id="guard" type="checkbox" checked>挡未放行外域</label>
+  <input id="allow-pattern" placeholder="URL 模式，如 tonedom.com" aria-label="放行模式">
+  <button id="allow-add">全部玩家放行</button><span id="allow-list"></span>
+</nav>
+<nav>
+  <span>只作用于当前玩家：</span><button data-key="ArrowUp">↑</button><button data-key="ArrowDown">↓</button>
+  <button data-key="Enter">确认</button><button data-key="Backspace">返回</button>
+  <button id="offline">断网</button><button id="online">恢复联网</button>
+  <button id="nod">点头</button><button id="shake">摇头</button>
+  <span id="notice" role="status"></span>
+</nav>
+<main id="players"></main>
+<script type="module" src="/host/players.js"></script>
+</html>
