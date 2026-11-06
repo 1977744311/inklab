@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-06
+
+### Added
+
+- Independent multiplayer workbench for 1–6 players, with per-player engines, capabilities,
+  device identities, browser storage, keyboard routing, pop-out windows and scenario controls.
+- Repeatable `--allow-external` patterns and optional application `inklab.config.json`, shared
+  by the workbench and headless runner; network controls show and edit the active allowlist.
+- WebSocket policy enforcement alongside fetch, connection/message-count diagnostics and
+  per-player download progress and OPFS cache clearing.
+- Streaming speech recognition support for newer AIUI engines, simulated audio capture without
+  microphone access, and a two-turn ASR compatibility probe.
+
+### Changed
+
+- Offline injection closes active WebSockets and aborts in-flight downloads; applications
+  remain responsible for reconnecting after the network is restored.
+- Multiplayer defaults to 1× canvases and a 20 fps frame pump to limit rendering overhead.
+
+### Fixed
+
+- The USB device driver honors scenario-declared input cooldowns.
+
 ## [0.1.0] - 2026-10-14
 
 ### Added
@@ -87,5 +110,6 @@ All notable changes to this project are documented in this file. The format foll
   it down, and a busy port ends with an error message and exit code 1 instead of an unhandled
   exception.
 
-[Unreleased]: https://github.com/1977744311/inklab/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/1977744311/inklab/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/1977744311/inklab/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/1977744311/inklab/releases/tag/v0.1.0
