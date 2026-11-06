@@ -2,6 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createNetworkControl, OFFLINE_REASON } from '../lib/caps/net.mjs';
 
+// Node 22 lacks this browser API; keep the shim inside this test's realm.
+const nativeCloseEvent = globalThis.CloseEvent;
+test.before(() => {
+  globalThis.CloseEvent ??= class CloseEvent extends Event {
+    constructor(type, { code = 0, reason = '', wasClean = false, ...init } = {}) {
+      super(type, init);
+      Object.assign(this, { code, reason, wasClean });
+    }
+  };
+});
+test.after(() => { if (!nativeCloseEvent) delete globalThis.CloseEvent; });
+
 class Socket extends EventTarget {
   static instances = [];
   constructor(url, protocols) { super(); this.url = url; this.protocols = protocols; this.sent = []; Socket.instances.push(this); }
