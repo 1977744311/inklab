@@ -3,6 +3,7 @@
 import { CAMERA_MODES } from '/host/lib/camera-mode.mjs';
 import { BLUETOOTH_MODES } from '/host/lib/bluetooth-mode.mjs';
 import { runtimeDisplayVersion } from '/host/lib/runtime-lock.mjs';
+import { installMockAudioCapture } from '/host/lib/mock-audio-capture.mjs';
 import { SCENARIOS } from '/scenarios/index.mjs';
 import { $, boot, esc, panes } from '/host/inklab/dom.js';
 import { engineLog } from '/host/inklab/engine-log.js';
@@ -24,6 +25,8 @@ import { renderScenarioPicker } from '/host/inklab/scenarios.js';
 // ── 装载 ────────────────────────────────────────────────────────────────
 
 let starting = null;
+let mockAudioCapture = null;
+globalThis.addEventListener?.('pagehide', () => mockAudioCapture?.dispose());
 
 export async function start() {
   if (starting) return starting; // 热重载连推两条时别把引擎重启叠起来
@@ -49,6 +52,8 @@ export async function start() {
     evidenceLedger.record('run.reload', { previousLanes: state.stages.map((stage) => stage.id) });
     try {
       for (const st of state.stages) disposeStage(st);
+      mockAudioCapture?.dispose();
+      mockAudioCapture = installMockAudioCapture();
       globalThis.fetch = hostFetch;
       globalThis.WebSocket = hostWebSocket;
       // A native notification subscription outlives the destroyed Ink instance.
@@ -127,6 +132,7 @@ export async function start() {
             scaleFactor: Number(new URLSearchParams(location.search).get('player-count')) > 1 ? 1 : (window.devicePixelRatio || 2), primary: state.stages.length === 0,
             files, info, mod, llm: llm.opts, cameraMode: state.cameraMode,
             bluetooth: state.bluetooth, bluetoothMode: state.bluetoothMode,
+            mockAudioCaptureEnabled: mockAudioCapture.installed,
           });
           state.stages.push(stage);
         } catch (error) {

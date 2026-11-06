@@ -32,11 +32,23 @@ test('dispatch and screenshot success alone remain pending-review', async () => 
     capture: async () => ({ source: 'adb-raw-png', width: 480, height: 640 }), capabilities: caps });
   const report = await driver.runScenario(scene([{ pressMany: ['ArrowRight', 2] }, { shot: 'actual' }]));
   assert.equal(inputs.length, 2);
-  assert.equal(inputs[0].waitMs, 250, 'each real CLI input includes a real cooldown in addition to host wake settling');
+  assert.equal(inputs[0].waitMs, 250, 'default input cooldown does not depend on wake settling');
   assert.equal(report.status, 'pending-review');
   assert.equal(report.ok, false);
   assert.equal(report.businessVerified, false);
   assert.equal(report.shots[0].height, 640);
+});
+
+test('declared cooldown applies to each repeated key and to single-key actions', async () => {
+  const inputs = [];
+  const driver = createDeviceDriver({ command: async value => { inputs.push(value); }, capture() {}, capabilities: caps });
+  await driver.runScenario(scene([
+    { pressMany: ['ArrowRight', 2], waitMs: 800 },
+    { press: 'ArrowLeft', waitMs: 500 },
+    { activate: true, waitMs: 900 },
+    { back: true, waitMs: 600 },
+  ]));
+  assert.deepEqual(inputs.map(input => input.waitMs), [800, 800, 500, 900, 600]);
 });
 
 test('only current raw screenshot OCR can satisfy a business assertion', async () => {

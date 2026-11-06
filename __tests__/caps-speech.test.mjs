@@ -366,11 +366,13 @@ test('引擎撤回合成时回 synthesisAborted；合成失败走 synthesisError
 
 // ── 契约面 ──────────────────────────────────────────────────────────────
 
-test('能力集正好装引擎认识的 6 个 speech 方法（多一个引擎不理，少一个一用就抛）', async () => {
+test('能力集同时装配旧识别接口与新流式识别接口', async () => {
   const { speech } = await listening();
   assert.deepEqual(Object.keys(speech.capabilities), ['speech']);
   assert.deepEqual(Object.keys(speech.capabilities.speech).sort(), [
-    'abortRecognition', 'abortSynthesis', 'speak', 'startRecognition', 'stopRecognition', 'synthesize',
+    'abortRecognition', 'abortRecognitionStream', 'abortSynthesis', 'finishRecognitionStream',
+    'getRecognitionCapabilities', 'openRecognitionStream', 'speak', 'startRecognition',
+    'stopRecognition', 'synthesize', 'updateRecognitionContext', 'writeRecognitionAudio',
   ]);
   for (const fn of Object.values(speech.capabilities.speech)) assert.equal(typeof fn, 'function');
 });
