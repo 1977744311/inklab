@@ -9,7 +9,8 @@ import { hostFetch, state } from '/host/inklab/state.js';
 // ── 工程源码 ────────────────────────────────────────────────────────────
 
 export async function loadProject() {
-  const info = await (await hostFetch('/api/manifest', { cache: 'no-store' })).json();
+  const info = window.__inklabInitialInfo || await (await hostFetch('/api/manifest', { cache: 'no-store' })).json();
+  delete window.__inklabInitialInfo;
   state.info = info;
   const source = info.source || { type: 'directory', path: info.appDir };
   boot(`${source.type === 'aix' ? '发布包' : '源码工程'} <span class="acc">${esc(source.path)}</span>`);

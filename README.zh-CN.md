@@ -34,6 +34,22 @@ npm start -- fixtures/cap-probe-app --open
 
 以上命令使用 [v0.1.0](https://github.com/1977744311/inklab/releases/tag/v0.1.0)。参与 InkLab 开发时请使用 `main`，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
+## 公网下载与多玩家
+
+```bash
+npm start -- <应用> --allow-external tonedom.com --players 2 --open
+npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场景>
+```
+
+外域默认仍拦截。`--allow-external <pattern>` 可重复，和应用目录中可选的
+`inklab.config.json`（如 `{"allowExternal":["tonedom.com"]}`）合并；工作台「网络」可增添放行项、查看清单或切换外域闸。
+规则沿用 URL 子串 / `*` 通配符语义，同时控制 fetch 和 WebSocket；整体断网会关闭 WS、中止下载，恢复后由应用自行重连。网络日志包含判定、WS 开关与消息计数。
+
+`--players 1–6` 或 `?players=N` 启动独立玩家网格（与多引擎 lane 二选一）。点击画面、Alt+1…6 或 Tab 切换玩家；按键、点头、摇头及展开的控制台只作用于当前玩家。
+每人拥有独立引擎、能力与设备身份；浏览器 localStorage/OPFS 按应用和玩家隔离。「单独窗口」会转移该席位，关闭窗口后返回网格。
+多玩家使用 1 倍画布、约 20fps。每格显示 WS 状态和下载进度；可清当前或全部玩家的 OPFS 并重载（也会清掉应用写在 OPFS 内的其他文件，保留 localStorage 设备身份）。
+自动化场景的 `build({ players })` 可调用 `players[0].press('Enter')`、`players[1].shot('lobby')`、`players[i].caps.net.offline()`；详见[指南](docs/guide.md#多玩家场景)。
+
 ## 核心概念
 
 | 名词 | 含义 |

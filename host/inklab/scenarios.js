@@ -48,6 +48,7 @@ export async function runScenario(id = $('scenario-pick').value, options = {}) {
   $('scenario-shots').innerHTML = '';
   showPane('scenario'); // 结果住在右侧页签里，不再把左边的能力控制台往下顶
   const shotsFrom = state.shots.length;
+  const playerShotsFrom = state.players.map((p) => p.lab.shots.length);
   const shouldRecord = options.record == null ? $('scenario-record').checked : Boolean(options.record);
 
   // 实时进度：整份步骤清单先渲染成待执行，driver 的 onStep 跑到哪步就地更新到哪步。
@@ -89,7 +90,7 @@ export async function runScenario(id = $('scenario-pick').value, options = {}) {
       autoRecording = true;
     }
     const steps = scenario.build({
-      caps: stage.caps, stage, driver, view: stage.view,
+      caps: stage.caps, stage, driver, view: stage.view, players: state.players,
       // 场景可用的宿主观测面。
       // pagesLoaded：本次装载以来引擎到过的页面。两个日志源，口径实测校正过：
       //   * `eval_module … pages/x/index.js`——页面**首次**加载必打（模块求值，同步确定）。
@@ -155,6 +156,14 @@ export async function runScenario(id = $('scenario-pick').value, options = {}) {
     $('scenario-run').disabled = false;
   }
 
+  if (state.players.length > 1) {
+    const names = new Set(report.shots.map((s) => s.name));
+    for (const p of state.players) {
+      for (const rec of p.lab.shots.slice(playerShotsFrom[p.index])) {
+        if (!names.has(rec.name)) { report.shots.push({ name: rec.name, value: rec }); names.add(rec.name); }
+      }
+    }
+  }
   report.scenarioId = id; // e2eShotReport 要核对「报告是不是这个场景的」
   if (scenarioRecording) {
     report.recording = {

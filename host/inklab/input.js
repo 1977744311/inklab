@@ -25,7 +25,7 @@ export function sendInput(type, key, timestamp) {
   evidenceLedger.record('input.key', { type, key, timestamp: ts, targets: targets.map((st) => st.id) });
   for (const st of targets) {
     st.view.dispatchInput(type, key, ts);
-    pump(st.view);
+    pump(st.view, Number(new URLSearchParams(location.search).get('player-count')) > 1 ? 1 : undefined);
   }
   return ts;
 }
@@ -46,7 +46,7 @@ export function wake(keyword = 'inklab', timestamp) {
   evidenceLedger.record('input.voice-wakeup', { keyword, timestamp: ts, targets: targets.map((st) => st.id) });
   for (const st of targets) {
     st.view.dispatchVoiceWakeup(keyword, ts);
-    pump(st.view);
+    pump(st.view, Number(new URLSearchParams(location.search).get('player-count')) > 1 ? 1 : undefined);
   }
   return ts;
 }

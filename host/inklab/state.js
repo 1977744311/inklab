@@ -9,6 +9,7 @@ import { SCENARIOS } from '/scenarios/index.mjs';
 // 宿主自己取源码/清单用的 fetch：**在断网注入之前留一份**。
 // 能力控制台的「断网」会换掉 globalThis.fetch（引擎的出网口就是它），
 // 不留这一份的话一断网连「重载工程」都拉不到源码了。
+export const hostWebSocket = globalThis.WebSocket;
 export const hostFetch = globalThis.fetch.bind(globalThis);
 
 // ink_web 的蓝牙不是 hostCapabilities 命名空间，而是直接读 navigator.bluetooth。
@@ -20,6 +21,9 @@ export const bluetoothController = createNavigatorBluetoothController();
 export const evidenceLedger = createEvidenceLedger();
 
 export const state = {
+  playerStorage: window.__inklabStorage,
+  manualAllowExternal: JSON.parse(sessionStorage.getItem('inklab.allowExternal') || '[]'),
+  players: [],
   mod: null, mods: new Map(), info: null,
   view: null, caps: null, driver: null,   // 主舞台的快捷引用（脚本按这三个名字取）
   stages: [], shots: [], recordings: [], recording: null,

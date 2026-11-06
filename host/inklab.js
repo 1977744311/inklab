@@ -46,6 +46,17 @@ import '/host/inklab/keyboard.js';
 // ── 自动化入口 ──────────────────────────────────────────────────────────
 
 Object.assign(state, {
+  allowExternal: (pattern) => {
+    (state.manualAllowExternal ||= []).push(pattern);
+    sessionStorage.setItem('inklab.allowExternal', JSON.stringify(state.manualAllowExternal));
+    for (const stage of state.stages) stage.caps.net.allowExternal(pattern);
+  },
+  clearCache: async () => {
+    for (const stage of state.stages) stage.caps.net.dispose();
+    const url = new URL(location.href);
+    url.searchParams.set('clear-cache', '1');
+    location.assign(url);
+  },
   press, sendInput, wake, snapshot, snapshotMatrix, runScenario, reload: start,
   startRecording: startStageRecording, stopRecording: stopStageRecording,
   recordingFormats: () => stageRecorder.formats(),
@@ -56,6 +67,16 @@ Object.assign(state, {
   setHintsVisible: applyHintsVisibility, setInspectorCollapsed: applyInspectorCollapsed,
   pump: (n) => state.stages.map((st) => pump(st.view, n || PUMP_MAX)),
 });
+
+state.players = [{
+  index: 0, window, lab: state,
+  get caps() { return state.caps; },
+  get view() { return state.view; },
+  get driver() { return state.driver; },
+  press: (...args) => state.driver.press(...args), sendInput,
+  shot: (name) => snapshot(`player-1--${name || 'shot'}`),
+  clearCache: () => state.clearCache(),
+}];
 
 renderScenarioPicker();
 wireConsole();

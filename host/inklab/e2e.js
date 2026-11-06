@@ -17,6 +17,8 @@ export function stampFor(scenarioId) {
   if (!state.lastLoad || !main) throw new Error('还没装载完，算不了源码指纹');
   const { files } = state.lastLoad;
   const fixtureParts = [];
+  const players = Number(new URLSearchParams(location.search).get('player-count') || 1);
+  if (players > 1) fixtureParts.push(`players:${players}`);
   // 默认 E2E 口径保持旧 stamp：Studio 黑底 + mock 相机/蓝牙 + llm off 不额外加噪。
   // 背景叠加规则进指纹，避免沿用旧 screen 混合的截图基线。
   if (state.previewMode !== 'studio') fixtureParts.push(`preview:${state.previewMode}`, 'composite:black-unmatte-v2');

@@ -339,3 +339,57 @@ npm run engine -- --discover      # 只读预览：查看线上有哪些新版�
 InkLab 使用与 Craft 相同的渲染引擎，**它能替代在 Craft 网页里手动点测，但不能替代戴上真机测试**。光学显示效果、整机功耗、真实传感器物理精度、真实麦克风收音与 TTS 播报、真实蓝牙射频与固件稳定性，仍需在真实眼镜上验收。
 
 此外，当前浏览器宿主全局不提供 `BarcodeDetector`（`typeof` 为 `undefined`），但引擎向静态 `barcode` 模块注入了构造器；因此在模拟器中只能测到“取帧扫码但未识别出有效内容”的分支，二维码成功识别的完整链路仍需在 Craft 或真机上验证。
+
+## 联网与下载
+
+外域默认挡下；CLI 可重复加 `--allow-external <pattern>`，或者在应用目录放
+`inklab.config.json`：`{"allowExternal":["https://tonedom.com/*","wss://tonedom.com/*"]}`。
+CLI 与配置取并集，启动应用前就生效，e2e 一样读取。普通字符串匹配 URL 子串，含 `*` 时是整条 URL 的通配符匹配，跟原有 `net.allowExternal()` 一致。
+工作台「网络」可添加放行项、查看清单、切换「挡外域」；手动添加项在该窗口会话中保留。
+
+Ink 的 WebSocket 直接构造浏览器原生 WS，宿主在它外层包装，与 fetch 共用放行和 block 规则。
+整体断网关闭已有 WS 并中止未完成下载；恢复只放开新连接，重连由应用负责。
+WS 日志记录 connect/open/close、关闭码及收发消息数，不记消息正文；`caps.net.networkState()` 返回当前 WS 和下载字节进度。
+WS 不模拟 HTTP 状态码、rewrite 或延迟。宿主拉源码的 fetch 与热重载 SSE 不受断网注入影响。
+
+「清下载缓存」会在新 document 装载引擎前清该玩家的浏览器 OPFS，并重建引擎内存中的原生文件系统。
+它会同时清掉该玩家放在 OPFS 中的其他文件（如进度）；localStorage 中的设备身份保持不变。
+浏览器 OPFS 与 Ink 自己实现的文件系统是两层，不能用浏览器 OPFS 的文件列表断言 Ink 内部下载结果；请看应用画面和网络完成日志。
+
+## 多玩家场景
+
+```bash
+npm start -- <app> --players 2 --allow-external tonedom.com --open
+npm run e2e -- <app> --players 4 --allow-external tonedom.com --scenario multiplayer
+# 通用隔离探针，无需公网：
+npm run e2e -- fixtures/cap-probe-app --players 6 --scenario multiplayer --no-video
+```
+
+也可在 URL 加 `?players=2`。每格是独立 iframe / WASM / 能力集 / 设备种子，浏览器 localStorage、sessionStorage、OPFS 按应用路径和玩家编号隔离；相同玩家独立窗口沿用身份。
+多玩家只选一个引擎；多 lane 仍用于同步输入的版本对比，不承担多人联机。点击画面、Alt+1…6 或 Tab（Shift+Tab 向前）切换当前玩家；只展开当前玩家的现有控制台，所有姿态、语音和故障控件都留在该玩家 realm。
+「单独窗口」转移当前席位，避免两个活实例同时使用同一设备身份；关窗口恢复原格。多玩家默认 1 倍画布、20fps，六人仍需看应用自身 CPU/内存开销。
+
+场景仍放 `<app>/e2e/scenarios/`，沿用现有步骤结构：
+
+```js
+export default {
+  id: 'two-player', title: '双人', summary: '分别驱动两个玩家',
+  build({ players }) {
+    return [
+      { label: '两位玩家分别确认', do: async () => {
+        await players[0].press('Enter');
+        await players[1].press('Enter');
+      } },
+      { label: '分别截图', do: () => {
+        players[0].shot('host'); players[1].shot('guest');
+      } },
+    ];
+  },
+};
+```
+
+`players` 从 0 编号，每项有 `press`（含驱动器时间戳）、`sendInput`、`shot`、`caps`、`view`、`driver`、`lab`、`window`、`clearCache`。
+用 `caps.sensors` 控制该玩家姿态，`caps.net.offline()/online()` 控制该玩家网络。
+`shot` 自动加 `player-N--` 前缀并进入现有 e2e 截图报告；源码指纹加入玩家数，避免和单人基线混用。
+`window.__inklab.players` 在网格中同样可用；`selectPlayer(i)` 切换当前键盘目标，`press()` 只发给该玩家。
+主玩家仍承接现有场景报告、录屏和基线 API；e2e 网络汇总覆盖全部玩家。

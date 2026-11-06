@@ -36,6 +36,25 @@ This quick start uses [v0.1.0](https://github.com/1977744311/inklab/releases/tag
 
 > The workbench UI is in Chinese for now.
 
+## Public networks and multiple players
+
+```bash
+npm start -- <app> --allow-external tonedom.com --players 2 --open
+npm run e2e -- <app> --players 4 --allow-external tonedom.com --scenario <id>
+```
+
+External traffic is still blocked by default. Repeat `--allow-external <pattern>` or add
+`{"allowExternal":["tonedom.com"]}` to the app's optional `inklab.config.json`; CLI and config lists are merged, including in e2e.
+The Network controls also show the list, add patterns and toggle the guard. Patterns retain URL substring / `*` glob semantics.
+Fetch and WebSocket share this policy; going offline closes sockets and aborts downloads. The app owns reconnection. Logs include decisions, WS open/close events and message counts.
+
+`--players 1–6` or `?players=N` opens independent players, instead of a runtime comparison.
+Click a tile, press Alt+1…6 or Tab to select a player; keys, head gestures and the expanded controls target that player.
+Each player has its own engine, capabilities and device identity, with browser localStorage/OPFS scoped by app and player.
+Pop out transfers a seat to another window; closing it restores the tile. Multiplayer uses 1× canvases at about 20fps.
+Tiles show WS status and download progress. Clear one/all players' OPFS and reload to retest downloads; this also removes other files the app stores in OPFS, while preserving localStorage device identity.
+Scenario `build({ players })` receives `players[i].press(key)`, `.shot(name)` and `.caps`; see the [guide](docs/guide.md#多玩家场景).
+
 ## Core concepts
 
 | Term | Meaning |
