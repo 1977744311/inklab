@@ -5,6 +5,14 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- Side-by-side USB glasses and simulator workbench with isolated simulator storage, source reload,
+  and simulator-only network controls. Both previews fit the same frame on desktop, with USB setup
+  and evidence in a scrollable side panel.
+- Shared header navigation across simulator, USB glasses, and side-by-side workbenches. Switching
+  modes preserves the simulator's selected runtime and other URL settings.
+
 ## [0.1.1] - 2026-11-06
 
 ### Added

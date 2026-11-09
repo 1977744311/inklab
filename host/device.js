@@ -46,18 +46,22 @@ async function refresh() {
     option.disabled = d.state !== 'device'; return option;
   }));
   if (state.status.serial) $('device-select').value = state.status.serial;
+  const connected = state.status.devices.some((d) => d.serial === state.status.serial && d.state === 'device');
   $('connection').textContent = state.status.serial || (state.status.enabled ? '未选择设备' : '未启用真机');
-  $('connection').classList.toggle('connected', state.status.devices.some((d) => d.serial === state.status.serial && d.state === 'device'));
+  $('connection').classList.toggle('connected', connected);
   if (!state.status.enabled) note('请用 npm start -- <工程目录> --device 启动服务。');
   else if (state.status.error) note(state.status.error, true);
-  else note(state.status.capabilities.asrText ? '文字模拟需要眼镜当前运行已启用调试入口的包。' : '当前工程支持按键和截图；文字模拟需增加应用适配器。');
+  else note(connected ? '眼镜已连接。请在眼镜中打开待测应用。' : '选择一台已授权的眼镜。');
   state.scenarios = await api('scenarios');
-  const previous = $('scenario-select').value;
-  $('scenario-select').replaceChildren(...state.scenarios.map((scene) => {
+  const scenarioSelect = $('scenario-select');
+  const previous = scenarioSelect.value;
+  scenarioSelect.replaceChildren(...state.scenarios.map((scene) => {
     const option = document.createElement('option'); option.value = scene.id;
     option.textContent = `${scene.support.supported ? '' : '[不支持] '}${scene.title || scene.id}`; return option;
   }));
-  if (state.scenarios.some((s) => s.id === previous)) $('scenario-select').value = previous;
+  scenarioSelect.disabled = !state.scenarios.length;
+  if (scenarioSelect.disabled) scenarioSelect.add(new Option('暂无真机场景', ''));
+  if (state.scenarios.some((s) => s.id === previous)) scenarioSelect.value = previous;
   renderScenario();
   const manifest = await fetch('/api/manifest').then((r) => r.json());
   $('coverage').replaceChildren();
@@ -169,6 +173,7 @@ Object.assign(state, { refresh, runScenario, command,
   exportRun: () => state.lastScenario });
 
 if (new URLSearchParams(location.search).get('simulator') === '1') {
+  document.title = 'InkLab · 真机 + 模拟器';
   const frame = $('simulator-frame');
   const url = new URL(location.href);
   url.pathname = '/'; url.searchParams.delete('simulator');
@@ -176,11 +181,7 @@ if (new URLSearchParams(location.search).get('simulator') === '1') {
   url.searchParams.set('preview', 'studio');
   frame.src = playerUrl(url.href, 0, 1, { embedded: true });
   $('simulator-panel').hidden = false;
-  $('hybrid-link').setAttribute('aria-current', 'page');
   document.querySelector('main').classList.add('hybrid');
-  const keys = document.querySelector('.keypad');
-  $('real-actions').append(keys);
-  $('real-actions').hidden = false;
 
   const controlSimulator = (fn, { requireReady = true } = {}) => async () => {
     const note = $('simulator-note');
@@ -197,7 +198,5 @@ if (new URLSearchParams(location.search).get('simulator') === '1') {
   }, { requireReady: false });
   $('simulator-offline').onclick = controlSimulator(lab => { lab.caps.net.offline(); return '模拟器网络已断开'; });
   $('simulator-online').onclick = controlSimulator(lab => { lab.caps.net.online(); return '模拟器网络已恢复'; });
-} else {
-  document.querySelector('nav a[href="/device"]').setAttribute('aria-current', 'page');
 }
 refresh().catch((err) => note(err.message, true));

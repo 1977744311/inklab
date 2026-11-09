@@ -13,6 +13,7 @@ const isTypingTarget = (el) => Boolean(el) && (
 
 function onKeyEvent(ev) {
   if (isTypingTarget(ev.target)) return;             // 在控制台输入框里打字不该推应用
+  if (ev.target?.closest?.('.workbench-modes')) return; // 保留模式链接的键盘操作
   if (ev.metaKey || ev.ctrlKey || ev.altKey) return; // 别抢浏览器快捷键
   if (!state.stages.length) return;
   const key = ev.code || ev.key;

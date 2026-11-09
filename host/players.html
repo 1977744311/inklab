@@ -4,11 +4,17 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>InkLab · 多玩家</title>
 <link rel="stylesheet" href="/host/players.css">
-<header>
-  <strong>InkLab · 多玩家</strong><span id="focus-label">玩家 1</span>
-  <span>点画面选玩家 · Alt+1…6 切换 · Tab 下一位</span>
-  <button id="controls">当前玩家控制台</button>
-  <button id="cache-current">清当前下载缓存</button><button id="cache-all">清全部下载缓存</button>
+<link rel="stylesheet" href="/host/workbench-modes.css">
+<header class="workbench-header">
+  <div class="workbench-brand"><span class="workbench-brand-mark" aria-hidden="true">IL</span>InkLab</div>
+  <nav class="workbench-modes" aria-label="工作台模式" hidden></nav>
+  <div class="player-tools">
+    <span>多玩家</span>
+    <span id="focus-label">玩家 1</span>
+    <span>点画面选玩家 · Alt+1…6 切换 · 画面内 Tab 下一位</span>
+    <button id="controls">当前玩家控制台</button>
+    <button id="cache-current">清当前下载缓存</button><button id="cache-all">清全部下载缓存</button>
+  </div>
 </header>
 <nav>
   <label><input id="guard" type="checkbox" checked>挡未放行外域</label>
@@ -23,5 +29,6 @@
   <span id="notice" role="status"></span>
 </nav>
 <main id="players"></main>
+<script type="module" src="/host/workbench-modes.js"></script>
 <script type="module" src="/host/players.js"></script>
 </html>

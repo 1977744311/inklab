@@ -16,7 +16,9 @@ try {
   window.__inklabInitialInfo = info;
   if (search.has('player')) {
     document.title = `InkLab · 玩家 ${player}`;
-    document.querySelector('.brand-copy span').textContent = `玩家 ${player}`;
+    const label = document.getElementById('seat-label');
+    label.textContent = `玩家 ${player}`;
+    label.hidden = false;
   }
   if (search.has('embedded')) document.body.classList.add('player-embedded');
   await import('/host/inklab.js');

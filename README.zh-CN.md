@@ -47,12 +47,12 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 `inklab.config.json`（如 `{"allowExternal":["tonedom.com"]}`）合并；工作台「网络」可增添放行项、查看清单或切换外域闸。
 规则沿用 URL 子串 / `*` 通配符语义，同时控制 fetch 和 WebSocket；整体断网会关闭 WS、中止下载，恢复后由应用自行重连。网络日志包含判定、WS 开关与消息计数。
 
-`--players 1–6` 或 `?players=N` 启动独立玩家网格（与多引擎 lane 二选一）。点击画面、Alt+1…6 或 Tab 切换玩家；按键、点头、摇头及展开的控制台只作用于当前玩家。
+`--players 1–6` 或 `?players=N` 启动独立玩家网格（与多引擎 lane 二选一）。点击画面、按 Alt+1…6 或在玩家画面聚焦时按 Tab 切换玩家。按键、点头、摇头及展开的控制台只作用于当前玩家。
 每人拥有独立引擎、能力与设备身份；浏览器 localStorage/OPFS 按应用和玩家隔离。「单独窗口」会转移该席位，关闭窗口后返回网格。
 多玩家使用 1 倍画布、约 20fps。每格显示 WS 状态和下载进度；可清当前或全部玩家的 OPFS 并重载（也会清掉应用写在 OPFS 内的其他文件，保留 localStorage 设备身份）。
 自动化场景的 `build({ players })` 可调用 `players[0].press('Enter')`、`players[1].shot('lobby')`、`players[i].caps.net.offline()`；详见[指南](docs/guide.md#多玩家场景)。
 
-加 `--device` 启动后打开 `/device?simulator=1`，并排操作 USB 真机和模拟器。让两端进同一个应用房间，用模拟器的断网、恢复联网按钮复测重连。连接方法见 [USB 真机](docs/device.md)。
+顶部模式栏可在「模拟器」「USB 真机」「真机 + 模拟器」之间切换。操作 USB 真机需加 `--device` 启动。桌面端并排显示同尺寸预览和真机设置。联调时让两端进同一个应用房间，用模拟器的断网、恢复联网按钮复测重连。连接方法见 [USB 真机](docs/device.md)。
 
 ## 核心概念
 

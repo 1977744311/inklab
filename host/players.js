@@ -86,7 +86,9 @@ for (let index = 0; index < count; index++) {
 }
 function onKey(event, inFrame = false) {
   const isTyping = /^(INPUT|SELECT|TEXTAREA)$/.test(event.target?.tagName) || event.target?.isContentEditable;
-  if (isTyping) return;
+  if (isTyping || event.target?.closest?.('.workbench-modes')) return;
+  // Outside the player area, Tab moves through the mode links and toolbar.
+  if (event.key === 'Tab' && !inFrame && event.target instanceof Element && !event.target.closest('#players')) return;
   const digit = /^Digit([1-6])$/.exec(event.code || '');
   const switchTo = event.altKey && digit ? Number(digit[1]) - 1
     : event.key === 'Tab' ? (router.active + (event.shiftKey ? count - 1 : 1)) % count : -1;

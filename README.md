@@ -51,13 +51,13 @@ The Network controls also show the list, add patterns and toggle the guard. Patt
 Fetch and WebSocket share this policy; going offline closes sockets and aborts downloads. The app owns reconnection. Logs include decisions, WS open/close events and message counts.
 
 `--players 1–6` or `?players=N` opens independent players, instead of a runtime comparison.
-Click a tile, press Alt+1…6 or Tab to select a player; keys, head gestures and the expanded controls target that player.
+Click a tile, press Alt+1…6, or press Tab while a player view has focus to select a player. Keys, head gestures and the expanded controls target that player.
 Each player has its own engine, capabilities and device identity, with browser localStorage/OPFS scoped by app and player.
 Pop out transfers a seat to another window; closing it restores the tile. Multiplayer uses 1× canvases at about 20fps.
 Tiles show WS status and download progress. Clear one/all players' OPFS and reload to retest downloads; this also removes other files the app stores in OPFS, while preserving localStorage device identity.
 Scenario `build({ players })` receives `players[i].press(key)`, `.shot(name)` and `.caps`; see the [guide](docs/guide.md#多玩家场景).
 
-With `--device`, open `/device?simulator=1` to put the USB glasses and a simulator seat side by side. Join the same app room on both sides. Use the simulator's offline and online controls to exercise reconnects. See [USB setup](docs/device.md).
+The header switches between **模拟器** (simulator), **USB 真机** (USB glasses), and **真机 + 模拟器** (side by side). Start with `--device` to control USB glasses. On desktop, the side-by-side view fits both previews at the same size beside the device controls. Join the same app room on both sides and use the simulator's offline and online controls to exercise reconnects. See [USB setup](docs/device.md).
 
 ## Core concepts
 

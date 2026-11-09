@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark light">
 <title>InkLab</title>
+<link rel="stylesheet" href="/host/workbench-modes.css">
 <script>
   try {
     const saved = localStorage.getItem('inklab.theme');
@@ -52,18 +53,11 @@
   code,kbd,.mono,.pill,.stage-version,.stage-meta,#meta,.source-badge,.runtime-pick,.pane{
     font-family:"SFMono-Regular","Cascadia Code",Menlo,monospace}
   [hidden]{display:none !important}
-  .app-shell{height:100%;display:grid;grid-template-rows:54px minmax(0,1fr)}
-  #topbar{position:relative;z-index:20;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;
-    gap:18px;padding:0 14px;border-bottom:1px solid var(--line);background:var(--glass);backdrop-filter:blur(18px)}
-  .brand{display:flex;align-items:center;gap:10px;min-width:180px}
-  .brand-mark{width:30px;height:30px;border:1px solid var(--accent);border-radius:9px;display:grid;place-items:center;
-    color:var(--accent);font:700 10px/1 "SFMono-Regular",monospace;box-shadow:inset 0 0 18px rgba(66,218,145,.08)}
-  .brand-copy{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
-  .brand-copy strong{font-size:15px;letter-spacing:.08em}
-  .brand-copy span{color:var(--dim);font:10px/1 "SFMono-Regular",monospace;letter-spacing:.06em;text-transform:uppercase}
-  .top-status{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0}
+  .app-shell{height:100%;display:grid;grid-template-rows:var(--workbench-header-height) minmax(0,1fr)}
+  #topbar{position:relative;z-index:20;border-bottom:1px solid var(--line);background:var(--glass);backdrop-filter:blur(18px)}
+  .top-status{display:flex;flex:1;align-items:center;justify-content:center;gap:8px;min-width:0}
   #meta{color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .top-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}
+  .top-actions{display:flex;align-items:center;gap:6px;white-space:nowrap;margin-inline-start:auto}
   .icon-button{min-width:34px;padding-inline:8px}
   .icon-button .button-label{margin-left:5px}
   #workspace{min-height:0;display:grid;grid-template-columns:minmax(0,1fr) clamp(330px,24vw,430px)}
@@ -171,22 +165,19 @@
   .matrix-strip{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;color:var(--dim)}
   .matrix-strip strong{color:var(--fg);font-weight:600}
   @media(max-height:850px){
-    .app-shell{grid-template-rows:48px minmax(0,1fr)}
-    #topbar{padding-inline:10px}.brand-mark{width:28px;height:28px}
     .stage{max-width:400px}.stage-meta{display:none}.preview-panel{grid-template-rows:36px minmax(0,1fr) 36px}
     .panel-head,.control-head{padding-block:4px}.run-strip .hint{display:none}
     #left{grid-template-rows:auto auto minmax(155px,1fr);gap:6px;padding:6px}
   }
   @media(max-width:1260px){
     #workspace{grid-template-columns:minmax(0,1fr)}
-    #right{position:fixed;z-index:30;right:0;top:54px;bottom:0;width:min(430px,92vw);border-top:1px solid var(--line)}
+    #right{position:fixed;z-index:30;right:0;top:var(--workbench-header-height);bottom:0;width:min(430px,92vw);border-top:1px solid var(--line)}
     body.inspector-collapsed #right{display:none}
     .run-strip{grid-template-columns:1fr}.runtime-block,.scenario-block{padding-block:6px}
-    .brand-copy span{display:none}
   }
   @media(max-width:760px){
     html,body{overflow:auto;height:auto;min-height:100%}.app-shell{min-height:100vh;height:auto}
-    #workspace{min-height:0}.top-status{display:none}.brand{min-width:0}.icon-button .button-label{display:none}
+    #workspace{min-height:0}.top-status{display:none}.icon-button .button-label{display:none}
     #left{overflow:visible;display:flex;flex-direction:column}.preview-panel{overflow:visible}
     #stages{justify-content:flex-start}.stage{min-width:min(88vw,420px)}
     .run-strip{display:flex;flex-direction:column}.grid2{grid-template-columns:1fr}.card-wide{grid-column:auto}
@@ -197,21 +188,22 @@
   body.player-embedded #topbar,body.player-embedded #right,body.player-embedded #left> :not(.preview-panel),body.player-embedded .panel-head,body.player-embedded .preview-toolbar,body.player-embedded .stage-head,body.player-embedded .stage-meta{display:none!important}
   body.player-embedded #stages{height:100%;padding:0;overflow:hidden}
   body.player-embedded .stage{max-width:none;min-width:0;gap:0}
+  body.player-embedded .optical-stage{border:0;border-radius:0;box-shadow:none}
 </style>
 </head>
 <body>
   <div class="app-shell">
-    <header id="topbar">
-      <div class="brand">
-        <div class="brand-mark">IL</div>
-        <div class="brand-copy"><strong>InkLab</strong><span>AIUI runtime workbench</span></div>
+    <header id="topbar" class="workbench-header">
+      <div class="workbench-brand" title="AIUI runtime workbench">
+        <span class="workbench-brand-mark" aria-hidden="true">IL</span>InkLab
       </div>
+      <nav class="workbench-modes" aria-label="工作台模式" hidden></nav>
       <div class="top-status">
+        <span id="seat-label" class="pill" hidden></span>
         <span id="meta">启动中…</span>
         <span id="watch-state" class="pill">watch …</span>
       </div>
       <div class="top-actions">
-        <a href="/device" style="color:var(--accent);white-space:nowrap;text-decoration:none">USB 真机</a>
         <label class="chk" title="源码一改就自动重跑装载（服务端 fs.watch + SSE，已去抖）">
           <input type="checkbox" id="autoreload" checked> 热重载
         </label>
@@ -507,6 +499,7 @@
   </aside>
     </div>
   </div>
+  <script type="module" src="/host/workbench-modes.js"></script>
   <script type="module" src="/host/entry.js"></script>
 </body>
 </html>
