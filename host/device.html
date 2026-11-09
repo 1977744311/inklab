@@ -6,7 +6,7 @@
   <link rel="stylesheet" href="/host/device.css">
 </head>
 <body>
-  <header><a class="brand" href="/">IL <b>InkLab</b></a><nav><a href="/">模拟器</a><span aria-current="page">USB 真机</span></nav><span id="connection" class="pill">读取设备…</span></header>
+  <header><a class="brand" href="/">IL <b>InkLab</b></a><nav><a href="/">模拟器</a><a href="/device">USB 真机</a><a id="hybrid-link" href="/device?simulator=1">真机 + 模拟器</a></nav><span id="connection" class="pill">读取设备…</span></header>
   <main>
     <section class="device-screen" aria-label="真实眼镜屏幕">
       <div class="section-heading"><h1>真实眼镜</h1><button id="mirror-toggle" class="primary">开始实时投屏</button></div>
@@ -14,9 +14,21 @@
       <p id="mirror-stats" class="muted small" role="status">投屏未开启 · 原始截图与视频预览分别保存</p>
       <div class="frame"><canvas id="mirror-canvas" width="480" height="640" hidden aria-label="真实眼镜实时视频"></canvas><img id="screen" alt="尚未截取眼镜画面"><p id="empty">接上眼镜，在眼镜内打开一次 AIUI 应用。<br>选择设备后即可从电脑操作。</p></div>
       <div class="caption"><span id="frame-meta">ADB 原图 · 不合成环境，不裁切</span><a id="download-image" hidden download="glasses-raw.png">下载原图</a></div>
+      <div id="real-actions" hidden></div>
       <div class="caption"><a id="mirror-recording" hidden>下载投屏录像</a><span id="recording-note"></span></div>
       <details><summary>截图识别文字</summary><pre id="ocr">尚无文字识别结果。</pre></details>
       <p class="muted small">实时视频来自眼镜 H.264，经本机解码显示；帧率按实际收到的帧计算。显示的延迟只覆盖本机解码到浏览器绘制，端到端延迟未测量。投屏期间临时唤醒，停止后恢复自然休眠。</p>
+    </section>
+    <section id="simulator-panel" hidden aria-label="模拟器席位">
+      <div class="section-heading"><h2>模拟器席位</h2><button id="simulator-reload">重载源码</button></div>
+      <p class="muted small">两端进入同一个联机房间。模拟器断网开关只影响右侧席位。</p>
+      <iframe id="simulator-frame" title="AIUI 模拟器" allow="autoplay"></iframe>
+      <div class="row sim-actions" aria-label="模拟器操作">
+        <button data-sim-key="ArrowUp" aria-label="模拟器向上">↑</button><button data-sim-key="ArrowDown" aria-label="模拟器向下">↓</button>
+        <button data-sim-key="Enter">确认</button><button data-sim-key="Backspace">返回</button>
+        <button id="simulator-offline">模拟器断网</button><button id="simulator-online">恢复联网</button>
+      </div>
+      <p id="simulator-note" class="notice" role="status"></p>
     </section>
     <section class="workspace">
       <div class="section-heading"><h2>连接与操作</h2><button id="refresh">刷新设备</button></div>

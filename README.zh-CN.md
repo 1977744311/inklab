@@ -52,6 +52,8 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 多玩家使用 1 倍画布、约 20fps。每格显示 WS 状态和下载进度；可清当前或全部玩家的 OPFS 并重载（也会清掉应用写在 OPFS 内的其他文件，保留 localStorage 设备身份）。
 自动化场景的 `build({ players })` 可调用 `players[0].press('Enter')`、`players[1].shot('lobby')`、`players[i].caps.net.offline()`；详见[指南](docs/guide.md#多玩家场景)。
 
+加 `--device` 启动后打开 `/device?simulator=1`，并排操作 USB 真机和模拟器。让两端进同一个应用房间，用模拟器的断网、恢复联网按钮复测重连。连接方法见 [USB 真机](docs/device.md)。
+
 ## 核心概念
 
 | 名词 | 含义 |

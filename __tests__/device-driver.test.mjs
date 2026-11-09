@@ -26,6 +26,15 @@ test('all steps are preflighted; unsupported later step prevents earlier input',
   assert.equal(touched, false);
 });
 
+test('wake without an adapter is rejected before earlier ADB keys', async () => {
+  const capabilities = { wakeAssistant: false };
+  const driver = createDeviceDriver({ command() { assert.fail('must not send a key'); }, capture() {}, capabilities });
+  const report = await driver.runScenario(scene([{ press: 'ArrowDown' }, { wake: true }]));
+  assert.equal(report.status, 'unsupported');
+  assert.match(report.summary, /长按唤醒/);
+  assert.equal(deviceScenarioSupport({ device: { steps: [], requires: ['wake-touch'] } }, capabilities).supported, false);
+});
+
 test('dispatch and screenshot success alone remain pending-review', async () => {
   const inputs = [];
   const driver = createDeviceDriver({ command: async (value) => { inputs.push(value); return { dispatched: true }; },

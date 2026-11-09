@@ -5,7 +5,8 @@ try {
   const search = new URLSearchParams(location.search);
   const player = Number(search.get('player') || 1);
   if (!Number.isInteger(player) || player < 1 || player > 6) throw new Error('player 必须是 1–6');
-  window.__inklabStorage = installPlayerStorage(window, `${info.config.storageNamespace}-player-${player}`);
+  const seat = search.get('hybrid-seat') === '1' ? 'hybrid' : `player-${player}`;
+  window.__inklabStorage = installPlayerStorage(window, `${info.config.storageNamespace}-${seat}`);
   if (search.has('clear-cache')) {
     await window.__inklabStorage.clearCache();
     const url = new URL(location.href);

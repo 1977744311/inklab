@@ -57,6 +57,8 @@ Pop out transfers a seat to another window; closing it restores the tile. Multip
 Tiles show WS status and download progress. Clear one/all players' OPFS and reload to retest downloads; this also removes other files the app stores in OPFS, while preserving localStorage device identity.
 Scenario `build({ players })` receives `players[i].press(key)`, `.shot(name)` and `.caps`; see the [guide](docs/guide.md#多玩家场景).
 
+With `--device`, open `/device?simulator=1` to put the USB glasses and a simulator seat side by side. Join the same app room on both sides. Use the simulator's offline and online controls to exercise reconnects. See [USB setup](docs/device.md).
+
 ## Core concepts
 
 | Term | Meaning |

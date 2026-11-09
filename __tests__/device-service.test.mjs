@@ -11,7 +11,7 @@ import { parseDeviceArgs } from '../lib/node/device-e2e.mjs';
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRZkAAAAASUVORK5CYII=', 'base64');
 const vision = { status: async () => ({ available: true }), read: async () => ({ status: 'available', text: '完成3组' }) };
 const mp4 = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from('ftypisom'), Buffer.alloc(12)]);
-async function fixture(t) {
+async function fixture(t, { asrText = true, sleepFn } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'inklab-device-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const appDir = join(root, 'app');
@@ -20,11 +20,13 @@ async function fixture(t) {
   const execute = async (file, args) => {
     calls.push({ file, args });
     if (args[0] === 'devices') return { stdout: 'List of devices attached\nA device model:RG_glasses\nB unauthorized\n' };
+    if (args[2] === 'exec-out') return { stdout: png };
     const pathIndex = args.indexOf('--capture');
     if (pathIndex !== -1) await writeFile(args[pathIndex + 1], png);
     return { stdout: JSON.stringify({ dispatched: true, resultVerified: false }) };
   };
-  const service = createDeviceService({ appDir, enabled: true, profile: 'test-adapter', asrText: true, outputDir: join(root, 'output'), execute, vision });
+  const service = createDeviceService({ appDir, enabled: true, profile: 'test-adapter', asrText,
+    outputDir: join(root, 'output'), execute, vision, sleepFn });
   await service.status();
   return { root, appDir, calls, service, execute };
 }
@@ -75,6 +77,25 @@ test('explicit selected device, fixed argv, and unmodified raw PNG evidence', as
   assert.equal(pngMetadata(png).sha256, shot.sha256);
   await assert.rejects(service.manual({ command: 'shell', value: 'reboot' }), /不支持/);
   await assert.rejects(service.manual({ command: 'key', value: 'right; reboot' }), /不支持/);
+});
+
+test('without an adapter, basic keys and PNG capture use ADB', async (t) => {
+  const waits = [];
+  const adb = process.env.ADB || 'adb';
+  const { service, calls } = await fixture(t, { asrText: false, sleepFn: async (ms) => { waits.push(ms); } });
+  assert.equal((await service.status()).capabilities.wakeAssistant, false);
+  await service.select('A');
+  const receipt = await service.manual({ command: 'key', value: 'right', waitMs: 0 });
+  assert.equal(receipt.dispatched, true);
+  assert.equal(receipt.resultVerified, false);
+  assert.deepEqual(calls.at(-1), { file: adb, args: ['-s', 'A', 'shell', 'input', 'keyevent', '22'] });
+  await service.manual({ command: 'key', value: 'back', waitMs: 900 });
+  assert.deepEqual(waits, [900]);
+  const shot = await service.screenshot('adb-raw');
+  assert.deepEqual(calls.at(-1), { file: adb, args: ['-s', 'A', 'exec-out', 'screencap', '-p'] });
+  assert.deepEqual(await readFile(shot.file), png);
+  await assert.rejects(service.manual({ command: 'wake-assistant' }), /长按唤醒适配器/);
+  await assert.rejects(service.manual({ command: 'capture' }), /截图接口/);
 });
 
 test('scene evidence is saved to local run.json and no package identity is fabricated', async (t) => {

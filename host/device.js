@@ -1,4 +1,5 @@
 import { createMirrorView } from '/host/device-mirror.js';
+import { playerUrl } from '/host/lib/multiplayer.mjs';
 const $ = (id) => document.getElementById(id);
 const state = { target: 'real-glasses', ready: false, status: null, scenarios: [], lastScenario: null,
   token: '', busy: false, runId: null, screen: null };
@@ -18,6 +19,7 @@ function controls() {
   const connected = state.status?.enabled && state.status?.devices.some((d) => d.serial === state.status.serial && d.state === 'device');
   for (const button of document.querySelectorAll('[data-key],#capture,#wake,#say,#run')) button.disabled = state.busy || !connected;
   $('say').disabled ||= !state.status?.capabilities.asrText;
+  $('wake').disabled ||= !state.status?.capabilities.wakeAssistant;
   $('run').disabled ||= !selectedScenario()?.support.supported;
   $('connect').disabled = state.busy || !state.status?.enabled;
   $('stop').disabled = !state.runId || !state.busy;
@@ -46,7 +48,7 @@ async function refresh() {
   if (state.status.serial) $('device-select').value = state.status.serial;
   $('connection').textContent = state.status.serial || (state.status.enabled ? '未选择设备' : '未启用真机');
   $('connection').classList.toggle('connected', state.status.devices.some((d) => d.serial === state.status.serial && d.state === 'device'));
-  if (!state.status.enabled) note('请用 npm run inklab -- <工程目录> --device 启动服务。');
+  if (!state.status.enabled) note('请用 npm start -- <工程目录> --device 启动服务。');
   else if (state.status.error) note(state.status.error, true);
   else note(state.status.capabilities.asrText ? '文字模拟需要眼镜当前运行已启用调试入口的包。' : '当前工程支持按键和截图；文字模拟需增加应用适配器。');
   state.scenarios = await api('scenarios');
@@ -91,10 +93,10 @@ async function act(fn) {
   try { return await fn(); } catch (err) { note(err.message, true); throw err; }
   finally { state.busy = false; controls(); }
 }
-async function command(args) {
+async function command(args, { capture = true } = {}) {
   return act(async () => {
     const receipt = await api('command', args);
-    displayShot(await api('capture', { name: `manual-${args.command}`, ocr: true }));
+    if (capture) displayShot(await api('capture', { name: `manual-${args.command}`, ocr: true }));
     note('输入已发送；请核对真实画面，发送成功不等于业务通过。');
     return receipt;
   });
@@ -147,7 +149,11 @@ $('refresh').onclick = handle(refresh);
 $('mirror-toggle').onclick = handle(() => mirrorView.toggle());
 $('connect').onclick = handle(async () => { await api('select', { serial: $('device-select').value }); await refresh(); });
 $('capture').onclick = handle(() => act(async () => displayShot(await api('capture', { name: 'manual', ocr: true }))));
-for (const button of document.querySelectorAll('[data-key]')) button.onclick = handle(() => command({ command: 'key', value: button.dataset.key, waitMs: 900 }));
+for (const button of document.querySelectorAll('[data-key]')) button.onclick = handle(() => {
+  const { active, mode } = mirrorView.state();
+  const live = active && mode === 'live';
+  return command({ command: 'key', value: button.dataset.key, waitMs: live ? 0 : 900 }, { capture: !live });
+});
 $('say').onclick = handle(() => command({ command: 'say', value: $('speech').value, waitMs: 800 }));
 $('wake').onclick = handle(() => command({ command: 'wake-assistant', waitMs: 300 }));
 $('scenario-select').onchange = renderScenario;
@@ -161,4 +167,37 @@ $('export').onclick = () => {
 Object.assign(state, { refresh, runScenario, command,
   snapshot: (name) => act(async () => { const shot = await api('capture', { name, ocr: true }); displayShot(shot); return shot; }),
   exportRun: () => state.lastScenario });
+
+if (new URLSearchParams(location.search).get('simulator') === '1') {
+  const frame = $('simulator-frame');
+  const url = new URL(location.href);
+  url.pathname = '/'; url.searchParams.delete('simulator');
+  url.searchParams.set('hybrid-seat', '1');
+  url.searchParams.set('preview', 'studio');
+  frame.src = playerUrl(url.href, 0, 1, { embedded: true });
+  $('simulator-panel').hidden = false;
+  $('hybrid-link').setAttribute('aria-current', 'page');
+  document.querySelector('main').classList.add('hybrid');
+  const keys = document.querySelector('.keypad');
+  $('real-actions').append(keys);
+  $('real-actions').hidden = false;
+
+  const controlSimulator = (fn, { requireReady = true } = {}) => async () => {
+    const note = $('simulator-note');
+    try {
+      const lab = frame.contentWindow.__inklab;
+      if (!lab?.reload || (requireReady && !lab.ready)) throw new Error(lab?.bootError || '模拟器正在启动');
+      note.textContent = await fn(lab) || '';
+    } catch (err) { note.textContent = err.message; }
+  };
+  for (const button of document.querySelectorAll('[data-sim-key]')) button.onclick = controlSimulator(lab => { lab.press(button.dataset.simKey); });
+  $('simulator-reload').onclick = controlSimulator(async lab => {
+    await lab.reload();
+    return lab.bootError;
+  }, { requireReady: false });
+  $('simulator-offline').onclick = controlSimulator(lab => { lab.caps.net.offline(); return '模拟器网络已断开'; });
+  $('simulator-online').onclick = controlSimulator(lab => { lab.caps.net.online(); return '模拟器网络已恢复'; });
+} else {
+  document.querySelector('nav a[href="/device"]').setAttribute('aria-current', 'page');
+}
 refresh().catch((err) => note(err.message, true));
