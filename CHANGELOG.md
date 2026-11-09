@@ -5,6 +5,8 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-09
+
 ### Added
 
 - Side-by-side USB glasses and simulator workbench with isolated simulator storage, source reload,
@@ -12,6 +14,18 @@ All notable changes to this project are documented in this file. The format foll
   and evidence in a scrollable side panel.
 - Shared header navigation across simulator, USB glasses, and side-by-side workbenches. Switching
   modes preserves the simulator's selected runtime and other URL settings.
+- Basic ADB keys and original PNG capture for apps without a device adapter.
+
+### Changed
+
+- Manual key presses in the live video view send input immediately. The original-image view
+  refreshes its PNG after each key press.
+
+### Fixed
+
+- USB scenarios that require an unavailable assistant-wake adapter report unsupported before
+  sending any device input.
+- The side-by-side simulator can reload source after a startup failure.
 
 ## [0.1.1] - 2026-11-06
 
@@ -118,6 +132,7 @@ All notable changes to this project are documented in this file. The format foll
   it down, and a busy port ends with an error message and exit code 1 instead of an unhandled
   exception.
 
-[Unreleased]: https://github.com/1977744311/inklab/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/1977744311/inklab/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/1977744311/inklab/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/1977744311/inklab/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/1977744311/inklab/releases/tag/v0.1.0
