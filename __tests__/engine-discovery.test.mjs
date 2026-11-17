@@ -526,7 +526,7 @@ test('清单坏了（不是合法 JSON / 还是旧格式的对象）：明说哪
 const knownD = () => ({ id: 'known-d', glue: GLUE_D, wasm: WASM_D });
 const DOWN = 'http://127.0.0.1:1/craft'; // 连不上的站点
 
-test('默认检查官方的两个平台：Craft 与 AIUI Studio；给了 --site 就只查给的（桩记下全部请求，只放行本机，不联网）', async () => {
+test('默认检查 npm 与官方的两个平台 Craft、AIUI Studio；给了 --site 就只查给的（桩记下全部请求，只放行本机，不联网）', async () => {
   const stub = join(scratch, 'record-fetch.mjs');
   await writeFile(stub, [
     "import { appendFileSync } from 'node:fs';",
@@ -542,10 +542,13 @@ test('默认检查官方的两个平台：Craft 与 AIUI Studio；给了 --site 
 
   const bare = await engine([], [KNOWN_A], { sites: [], fetchStub: stub });
   assert.equal(bare.code, 0, bare.stdout + bare.stderr);
-  assert.deepEqual(await requestedUrls(), ['https://js.rokid.com/craft', 'https://aiui.rokid.com/']);
+  assert.deepEqual(await requestedUrls(), [
+    'https://registry.npmjs.org/-/package/@yodaos-pkg/ink/dist-tags', 'https://js.rokid.com/craft', 'https://aiui.rokid.com/',
+  ]);
+  assert.match(bare.stdout, /⚠ 没能检查 npm @yodaos-pkg\/ink：/);
   assert.match(bare.stdout, /⚠ 没能检查 https:\/\/js\.rokid\.com\/craft：/);
   assert.match(bare.stdout, /⚠ 没能检查 https:\/\/aiui\.rokid\.com\/：/);
-  assert.match(bare.stdout, /known-a · 已有锁定缓存/, '两个站点都查不了也照常按清单装配');
+  assert.match(bare.stdout, /known-a · 已有锁定缓存/, '三个来源都查不了也照常按清单装配');
   assert.equal(bare.lockAfter, bare.lockBefore);
 
   await rm(`${stub}.log`);
@@ -644,7 +647,7 @@ test('--discover 一个站点查不了：照样报另一个站点的发现（退
   const gap = await discover([KNOWN_A, knownD()], [`craft=${DOWN}`, `studio=${base}/studio`]);
   assert.equal(gap.code, 1, gap.stdout + gap.stderr);
   assert.match(gap.stderr, /⚠ 没能检查 http:\/\/127\.0\.0\.1:1\/craft：/);
-  assert.match(gap.stdout, /1 个站点没能检查，结果不完整（退出码 1）/);
+  assert.match(gap.stdout, /1 个来源没能检查，结果不完整（退出码 1）/);
 
   const clear = await discover([KNOWN_A, { id: 'known-b', glue: GLUE_B, wasm: WASM_B }, knownD()],
     [`craft=${base}/craft`, `studio=${base}/studio`]);

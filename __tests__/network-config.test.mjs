@@ -30,3 +30,14 @@ test('optional app config merges CLI patterns without changing default guard', a
     await assert.rejects(readAppConfig(dir), /数组/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+test('app config may name the project default runtime (a channel or lane id)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'inklab-config-'));
+  try {
+    await writeFile(join(dir, 'inklab.config.json'), JSON.stringify({ runtime: ' daily ' }));
+    assert.deepEqual(await readAppConfig(dir), { allowExternal: [], runtime: 'daily' });
+    await writeFile(join(dir, 'inklab.config.json'), JSON.stringify({ runtime: '' }));
+    await assert.rejects(readAppConfig(dir), /runtime 必须是通道名/);
+    await writeFile(join(dir, 'inklab.config.json'), JSON.stringify({ runtime: ['daily'] }));
+    await assert.rejects(readAppConfig(dir), /runtime 必须是通道名/);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

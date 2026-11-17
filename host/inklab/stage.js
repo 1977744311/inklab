@@ -29,7 +29,7 @@ const keyboardSink = document.createElement('div');
 
 function runtimeRegistryOf(info) {
   const runtimes = (info?.runtimes || []).filter((runtime) => runtime.available);
-  return { default: info?.runtimeDefault, runtimes };
+  return { default: info?.runtimeDefault, aliases: info?.runtimeAliases || {}, runtimes };
 }
 
 export function renderRuntimePicker(info) {

@@ -43,13 +43,13 @@ after(async () => {
 });
 
 /** 用这份清单（lane 数组，第一条是默认）起一个服务，返回启动期间的日志和 manifest 里的默认 lane。 */
-async function startWith(lanes) {
+async function startWith(lanes, env = {}) {
   await writeFile(join(tool, 'runtimes.lock.json'), JSON.stringify(lanes));
   const lines = [];
-  const lab = await serve.createInkLabServer({ input: appDir, port: 0, env: {}, log: (line) => lines.push(line) });
+  const lab = await serve.createInkLabServer({ input: appDir, port: 0, env, log: (line) => lines.push(line) });
   try {
     const manifest = await (await fetch(new URL('/api/manifest', lab.url))).json();
-    return { lines, runtimeDefault: manifest.runtimeDefault };
+    return { lines, runtimeDefault: manifest.runtimeDefault, runtimeAliases: manifest.runtimeAliases };
   } finally {
     await lab.close();
   }
@@ -71,6 +71,39 @@ test('默认 lane 就在缓存里：不打这条提示', async () => {
   const { lines, runtimeDefault } = await startWith([lane('other'), lane('fake')]);
   assert.equal(runtimeDefault, 'other');
   assert.deepEqual(lines.filter((line) => line.includes('默认运行时')), []);
+});
+
+test('通道名只在本机有缓存的 lane 里算；INKLAB_RUNTIME 可临时换默认（lane id 或通道名）', async () => {
+  const newer = lane('newer', { engineVersion: '10.0.0' });
+  const plain = await startWith([newer, lane('other')]);
+  assert.equal(plain.runtimeDefault, 'other', '版本更高的 newer 本机没缓存，latest 落在 other');
+  assert.deepEqual(plain.runtimeAliases, { latest: 'other', daily: 'other', studio: null });
+  assert.ok(plain.lines.some((line) => line.includes('默认运行时 newer 本机没有缓存')), plain.lines.join('\n'));
+
+  const byAlias = await startWith([lane('other')], { INKLAB_RUNTIME: 'daily' });
+  assert.equal(byAlias.runtimeDefault, 'other');
+  const bad = await startWith([lane('other')], { INKLAB_RUNTIME: 'craft-stable' });
+  assert.equal(bad.runtimeDefault, 'other');
+  assert.ok(bad.lines.includes('[inklab] INKLAB_RUNTIME=craft-stable 不是本机可用的 lane 或通道名，忽略；本次默认用 other'), bad.lines.join('\n'));
+});
+
+test('应用的 inklab.config.json 可写 runtime 当项目默认；INKLAB_RUNTIME 比它优先；写错了说出来', async () => {
+  const config = join(appDir, 'inklab.config.json');
+  try {
+    await writeFile(config, JSON.stringify({ runtime: 'daily' }));
+    const ok = await startWith([lane('other')]);
+    assert.equal(ok.runtimeDefault, 'other');
+    assert.deepEqual(ok.lines.filter((line) => line.includes('runtime')), []);
+
+    await writeFile(config, JSON.stringify({ runtime: 'craft-stable' }));
+    const bad = await startWith([lane('other')]);
+    assert.ok(bad.lines.includes('[inklab] inklab.config.json 的 runtime=craft-stable 不是本机可用的 lane 或通道名，忽略；本次默认用 other'), bad.lines.join('\n'));
+
+    const env = await startWith([lane('other')], { INKLAB_RUNTIME: 'latest' });
+    assert.deepEqual(env.lines.filter((line) => line.includes('runtime')), [], '环境变量优先，不再看配置里写错的值');
+  } finally {
+    await rm(config, { force: true });
+  }
 });
 
 test('没有清单（全新 clone 还没跑过 npm run engine）：起不来，并说怎么生成', async () => {

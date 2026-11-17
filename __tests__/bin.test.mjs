@@ -8,8 +8,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const REPO = new URL('../', import.meta.url).pathname;
-const run = (name, args = [], { repo = REPO, ...options } = {}) => spawnSync(
-  process.execPath, [join(repo, 'bin', name), ...args], { encoding: 'utf8', timeout: 30_000, ...options });
+// INKLAB_NO_UPDATE=1：入口启动时不去 npm 查新引擎（测试不联网）。
+const run = (name, args = [], { repo = REPO, env = process.env, ...options } = {}) => spawnSync(
+  process.execPath, [join(repo, 'bin', name), ...args],
+  { encoding: 'utf8', timeout: 30_000, ...options, env: { ...env, INKLAB_NO_UPDATE: '1' } });
 
 const lane = (id) => ({ id, engineVersion: '9.9.9', glueSha256: 'a'.repeat(64), wasmSha256: 'b'.repeat(64) });
 
@@ -44,6 +46,23 @@ test('inklab-engine --check 在空缓存目录下报「缺文件」且不发网�
     const r = run('inklab-engine.mjs', ['--check'], { repo, env: { ...process.env, INKLAB_ENGINE_DIR: cache } });
     assert.equal(r.status, 1, r.stdout + r.stderr);
     assert.match(r.stderr, /缺 ink-glue\.js/);
+  } finally {
+    rmSync(cache, { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test('inklab-engine --list --json 不联网：列出 lane、是否已缓存，以及各通道指向哪条', () => {
+  const repo = cloneRepo([lane('probe')]);
+  const cache = realpathSync(mkdtempSync(join(tmpdir(), 'inklab-bin-cache-')));
+  try {
+    const r = run('inklab-engine.mjs', ['--list', '--json'], { repo, env: { ...process.env, INKLAB_ENGINE_DIR: cache } });
+    assert.equal(r.status, 0, r.stdout + r.stderr);
+    assert.deepEqual(JSON.parse(r.stdout), {
+      default: null,
+      aliases: { latest: null, daily: null, studio: null },
+      runtimes: [{ id: 'probe', version: '9.9.9', cached: false }],
+    });
   } finally {
     rmSync(cache, { recursive: true, force: true });
     rmSync(repo, { recursive: true, force: true });

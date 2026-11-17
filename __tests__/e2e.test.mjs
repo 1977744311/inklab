@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  parseE2eArgs, extractDevtoolsWsUrl, buildPageUrl, judgeScenario, summarizeNetLog,
+  parseE2eArgs, extractDevtoolsWsUrl, buildPageUrl, judgeScenario, summarizeNetLog, resolveRequestedRuntimes,
   resolveScenarioLlm, sameLlmConfig, describeLlm, cassetteTargetFor, pinCassetteModel,
   shouldNavigateForScenario,
 } from '../lib/node/e2e.mjs';
@@ -322,4 +322,22 @@ test('录完即清洗：手写录像带（没有 request 元数据）原样留�
   const out = pinCassetteModel(handWritten, 'inklab-cassette');
   assert.deepEqual(out.entries[0], handWritten.entries[0], '重算不了键就别动——静默改键会让整盘录像失效');
   assert.deepEqual(pinCassetteModel({}, 'm').entries, []);
+});
+
+test('--runtime 可写通道名：换成本机可用的 lane；不认识的列出可用项；没写时记下默认 lane', () => {
+  const manifest = {
+    runtimeDefault: 'npm-ink-0.20.0',
+    runtimeAliases: { latest: 'npm-ink-0.20.0', daily: 'npm-ink-0.21.0-daily.9', studio: null },
+    runtimes: [
+      { id: 'npm-ink-0.20.0', available: true },
+      { id: 'npm-ink-0.21.0-daily.9', available: true },
+      { id: 'craft-0.18.0', available: false },
+    ],
+  };
+  assert.deepEqual(resolveRequestedRuntimes('latest,daily,latest', manifest).ids, ['npm-ink-0.20.0', 'npm-ink-0.21.0-daily.9']);
+  assert.deepEqual(resolveRequestedRuntimes('npm-ink-0.20.0', manifest).ids, ['npm-ink-0.20.0']);
+  const bad = resolveRequestedRuntimes('studio,craft-0.18.0,craft-stable', manifest);
+  assert.deepEqual(bad.missing, ['studio', 'craft-0.18.0', 'craft-stable']);
+  assert.deepEqual(bad.available, ['npm-ink-0.20.0', 'npm-ink-0.21.0-daily.9']);
+  assert.deepEqual(resolveRequestedRuntimes(null, manifest).ids, ['npm-ink-0.20.0']);
 });

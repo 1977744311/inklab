@@ -8,7 +8,7 @@ USB 连接真实眼镜见 [device.md](device.md)；实测总结的引擎底层�
 在本地直接运行 AIUI 源码目录或 `.aix` 发布包：**代码不会上传，启动后无需依赖外网**。
 
 ```bash
-npm run engine                               # 首次运行：去官方站点获取引擎、生成 runtimes.lock.json 并下载到本地
+npm run engine                               # 首次运行：从 npm 与官方站点获取引擎、生成 runtimes.lock.json 并下载到本地
 npm start -- <app>                           # 直接运行应用源码目录
 npm start -- <app>.aix                       # 直接运行打包好的 .aix 发布包
 npm start -- <app> --compare-with <app>.aix  # 运行源码，并对照 .aix 包的文件差异
@@ -233,7 +233,7 @@ npm run e2e -- <app> --accept                        # 将本次运行的截图�
 npm run e2e -- <app> --scenario onboarding-goal      # 只运行指定场景
 npm run e2e -- <app> --no-video                      # 关闭场景自动录屏（默认开启）
 npm run e2e -- <app> --headed                        # 打开可见浏览器窗口运行，方便排障
-npm run e2e -- <app> --runtime <lane>                # 指定使用某一个引擎版本运行
+npm run e2e -- <app> --runtime latest               # 指定引擎：通道名 latest / daily / studio，或具体 lane id
 npm run e2e -- <app> --preview optical \
   --lighting indoor-bright                           # 在真机模拟竖屏 + 室内明亮背景模式下运行
 npm run e2e -- dist/pkg.aix --scenario smoke \
@@ -310,18 +310,23 @@ npm run e2e -- <app> --scenario llm-fc-intent
 
 ## 引擎版本会漂
 
-Rokid 官方站点上同时挂着多个引擎版本（如正式版与每日构建 daily 版），且会随站点发版而更新。为了保证测试结果可复现，`runtimes.lock.json` 中的每一条版本记录（lane）都是**只读锁定的**：一旦记下 id、来源、版本号和 SHA-256 哈希，就绝不覆盖修改；列表顺序代表优先级，**第一条即为默认引擎版本**。
+引擎会持续发新版：npm 上的 `@yodaos-pkg/ink` 用 `latest` 标签发正式版、`daily` 标签发每日构建；AIUI Studio 与 Craft 网页里嵌的构建更旧，随站点发版才更新。为了保证测试结果可复现，`runtimes.lock.json` 中的每一条版本记录（lane）都是**只读锁定的**：一旦记下 id、来源、版本号和 SHA-256 哈希，就绝不覆盖修改。
+
+「最新」交给**通道名**：`latest`（版本最高的正式版）、`daily`（版本最高的任意构建）、`studio`（Studio 网页版来源里版本最高的）。通道名每次按本机已缓存的 lane 现算，同号版本优先 npm 官方包。**默认引擎就是 `latest`**，与列表顺序无关。项目要跟真机对齐（例如真机已经是每日构建）时，在应用目录的 `inklab.config.json` 里写 `"runtime": "daily"`，工作台与 e2e 都以它为默认；优先级从高到低是 `--runtime` / `?runtimes=`、`INKLAB_RUNTIME`、`inklab.config.json` 的 `runtime`、`latest`。项目脚本里写通道名，引擎更新后不用改项目；截图基线的指纹里带着引擎构建号，引擎一换基线就会标成 `stale`，这是提醒你在新引擎上重录，不是故障。要复现某次旧结果时再写具体 lane id。
+
+`inklab`、`inklab-e2e`、`inklab-matrix` 启动时会查一次 npm（一天最多一次，时间记在 `.engine/update-check.json`），`latest` 或 `daily` 指向的版本还没有 lane 就自动下载并追加。查不了只打一行警告，照常用本机已有的引擎。`INKLAB_NO_UPDATE=1` 关掉检查（CI 想完全离线时用），`INKLAB_UPDATE=force` 立即检查，`INKLAB_NPM_REGISTRY` 改用镜像。
 
 ```bash
 npm run engine                    # 检查官方站点、将新版本追加到清单（首次运行会创建清单），并下载本地缺失的引擎文件
 npm run engine -- <lane>          # 同样先检查站点，但只下载指定的引擎版本（可写多个）
 npm run engine -- --check         # 仅离线校验本地已下载文件与清单哈希是否一致（不联网）
 npm run engine -- --discover      # 只读预览：查看线上有哪些新版本可追加，不写任何文件（无新版本返回 0，发现新版本返回 2，检查失败返回 1）
+npm run engine -- --list          # 不联网：列出本机的 lane、哪些已缓存，以及 latest / daily / studio 各指向哪条
 ```
 
-1. **自动发现新版本**：默认检查 Craft（`https://js.rokid.com/craft`）和 AIUI Studio（`https://aiui.rokid.com/`）两个站点（也可通过 `--site=[<名字>=]<url>` 指定自定义站点）。脚本通过比对胶水 JS 文件的 SHA-256 判断该构建是否已收录；若没有新构建，只会拉取轻量的入口 JS 文件对比，不会重复下载体积庞大的 WASM。
-2. **只追加、不覆盖**：发现未收录的新构建时，脚本会下载 WASM 计算哈希并提取版本号，按 `<平台>-<版本>` 命名（如 `craft-0.19.0-daily.202609230326`；同名但文件内容不同时自动附上哈希前 8 位），追加到 `runtimes.lock.json` 末尾并缓存在 `.engine/`。首次在空目录下生成清单时，正式版会自动排在 daily 版前面作为默认版本。你可以随时修改条目的 `id` 或 `label` 别名，不影响缓存识别与截图基线指纹。
-3. **容错与格式校验**：某个站点无法访问时仅打印警告，继续检查另一个站点并按现有清单下载。手写修改 `runtimes.lock.json` 时如果出现 JSON 语法错误，会直接报错并指出文件位置。
+1. **自动发现新版本**：先查 npm（`@yodaos-pkg/ink` 的 `latest`、`daily` 标签；版本还没有 lane 就下载 tarball、按 `integrity` 校验后整包解进 `.engine/runtimes/npm-ink-<版本>/`，lane 里记下 `tarballUrl` 与 `tarballIntegrity`，缓存丢了可以重取），再查 Craft（`https://js.rokid.com/craft`）和 AIUI Studio（`https://aiui.rokid.com/`）两个站点（也可通过 `--site=[<名字>=]<url>` 只查指定的站点，此时不查 npm）。站点构建靠比对胶水 JS 文件的 SHA-256 判断是否已收录；若没有新构建，只会拉取轻量的入口 JS 文件对比，不会重复下载体积庞大的 WASM。
+2. **只追加、不覆盖**：发现未收录的新构建时，脚本会下载 WASM 计算哈希并提取版本号，按 `<平台>-<版本>` 命名（如 `npm-ink-0.20.0`、`craft-0.19.0-daily.202609230326`；站点构建同名但文件内容不同时自动附上哈希前 8 位），追加到 `runtimes.lock.json` 末尾并缓存在 `.engine/`。你可以随时修改条目的 `label`，不影响缓存识别与截图基线指纹；改 `id` 会让项目里写死的这个 id 失效，所以项目里尽量写通道名。
+3. **容错与格式校验**：某个来源无法访问时仅打印警告，继续检查其余来源并按现有清单下载。手写修改 `runtimes.lock.json` 时如果出现 JSON 语法错误，会直接报错并指出文件位置。
 
 自动发现仅支持带有独立胶水 JS 文件的引擎构建。如果遇到站点改版或其他来源的构建，可以**手动添加一条引擎记录**：
 
@@ -333,11 +338,11 @@ npm run engine -- --discover      # 只读预览：查看线上有哪些新版�
    node --input-type=module -e "import { readFileSync } from 'node:fs'; import { extractEngineVersion } from './lib/node/engine-version.mjs'; console.log(extractEngineVersion(readFileSync(process.argv[1])))" engine.wasm
    ```
 
-4. 在 `runtimes.lock.json` 数组中新增一条记录，字段顺序为 `id`、`label`、`channel`、`cacheDir`、`source`、`fetchedAt`、`engineVersion`、`engineBuild`、`glueUrl`、`glueSha256`、`wasmUrl`、`wasmSha256`（其中 `id`、`engineVersion` 或 `engineBuild`、`glueSha256`、`wasmSha256` 为必填；需要自动下载时填 `glueUrl`、`wasmUrl`；如果源站链接已失效、仅使用本机已有缓存文件，可加上 `cacheOnly: true`）。保存后运行 `npm run engine -- <新 lane id>` 验证即可。
+4. 在 `runtimes.lock.json` 数组中新增一条记录，字段顺序为 `id`、`label`、`channel`、`cacheDir`、`source`、`fetchedAt`、`engineVersion`、`engineBuild`、`glueUrl`、`glueSha256`、`wasmUrl`、`wasmSha256`（其中 `id`、`engineVersion` 或 `engineBuild`、`glueSha256`、`wasmSha256` 为必填；需要自动下载时填 `glueUrl`、`wasmUrl`；如果源站链接已失效、仅使用本机已有缓存文件，可加上 `cacheOnly: true`；npm 包的版本不用手写，`inklab-engine` 会自动收录，它的条目用 `tarballUrl`、`tarballIntegrity` 代替 `glueUrl`、`wasmUrl`）。保存后运行 `npm run engine -- <新 lane id>` 验证即可。
 
 ## 测试边界
 
-InkLab 使用与 Craft 相同的渲染引擎，**它能替代在 Craft 网页里手动点测，但不能替代戴上真机测试**。光学显示效果、整机功耗、真实传感器物理精度、真实麦克风收音与 TTS 播报、真实蓝牙射频与固件稳定性，仍需在真实眼镜上验收。
+InkLab 使用 Rokid 发布的同一个渲染引擎，**它能替代在 AIUI Studio / Craft 网页里手动点测，但不能替代戴上真机测试**。光学显示效果、整机功耗、真实传感器物理精度、真实麦克风收音与 TTS 播报、真实蓝牙射频与固件稳定性，仍需在真实眼镜上验收。
 
 此外，当前浏览器宿主全局不提供 `BarcodeDetector`（`typeof` 为 `undefined`），但引擎向静态 `barcode` 模块注入了构造器；因此在模拟器中只能测到“取帧扫码但未识别出有效内容”的分支，二维码成功识别的完整链路仍需在 Craft 或真机上验证。
 

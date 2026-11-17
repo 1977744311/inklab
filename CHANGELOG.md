@@ -5,6 +5,23 @@ All notable changes to this project are documented in this file. The format foll
 
 ## [Unreleased]
 
+### Added
+
+- `inklab-engine` checks npm (`@yodaos-pkg/ink`, tags `latest` and `daily`) before the AIUI Studio and Craft sites.
+  New versions become `npm-ink-<version>` lanes; the package tarball is verified against its `integrity` and
+  extracted whole, and can be downloaded again if the cache is lost.
+- Channel names `latest` (newest release), `daily` (newest build) and `studio` (AIUI Studio's web preview) work
+  wherever a lane id does: `--runtime`, `?runtimes=` and `INKLAB_RUNTIME`.
+- `inklab`, `inklab-e2e` and `inklab-matrix` check npm for new engines at most once a day on start.
+  `INKLAB_NO_UPDATE=1` skips the check, `INKLAB_UPDATE=force` forces it, `INKLAB_NPM_REGISTRY` sets a mirror.
+- `inklab-engine --list` shows the local lanes and where each channel points.
+- An app's `inklab.config.json` may set `runtime` (a channel or lane id) as the project's default engine.
+
+### Changed
+
+- The default lane is the `latest` channel among cached lanes instead of the first entry in `runtimes.lock.json`.
+- An unknown `--runtime` now lists the available lanes and the channel names.
+
 ## [0.2.0] - 2026-11-09
 
 ### Added

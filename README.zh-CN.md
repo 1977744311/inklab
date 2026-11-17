@@ -19,7 +19,7 @@
 - **测试报告与录屏**——一键导出 `run.json`（包含源码版本、引擎哈希、执行时间线、网络日志、截图产物），或将应用画面直接录制成 MP4/WebM 视频。
 - **可选：USB 连接真机测试**——通过 `adb` 在真实眼镜上截图、实时投屏、运行只读测试场景，见 [docs/device.md](docs/device.md)。
 
-InkLab 和官方 Craft 网页使用的是同一个渲染引擎，因此**它能替代在 Craft 里手动点测，但不能替代最终的真机验收**：光学显示、功耗、真实传感器精度、麦克风收音和蓝牙信号仍需在真实眼镜上验证。
+InkLab 用的是 Rokid 在 npm 上发布、并嵌在 AIUI Studio 与 Craft 网页里的同一个渲染引擎，因此**它能替代在 Craft 里手动点测，但不能替代最终的真机验收**：光学显示、功耗、真实传感器精度、麦克风收音和蓝牙信号仍需在真实眼镜上验证。
 
 ## 快速开始
 
@@ -29,13 +29,13 @@ InkLab 和官方 Craft 网页使用的是同一个渲染引擎，因此**它能�
 git clone --branch v0.2.0 --depth 1 https://github.com/1977744311/inklab.git
 cd inklab
 npm run install-cli                         # 把 inklab、inklab-e2e 等命令软链到 ~/.local/bin
-inklab-engine                               # 首次运行：从 Craft 和 AIUI Studio 站点获取引擎并缓存到本地
+inklab-engine                               # 首次运行：从 npm、AIUI Studio 和 Craft 获取最新引擎并缓存到本地
 inklab fixtures/cap-probe-app --open
 ```
 
 `install-cli` 把命令软链到 `~/.local/bin`（`--bin-dir` 可换目录），跟 fnm / nvm 当前选的 Node 版本无关；链接指向这份 clone，`git pull` 之后命令就是新版，引擎缓存也仍在这份 clone 的 `.engine/` 里。之后在任何项目目录里都可以直接用 `inklab <应用目录>`、`inklab-e2e <应用目录>`。`npm run install-cli -- --uninstall` 卸载。不想装命令时，在本仓库里照旧用 `npm start --`、`npm run e2e --` 等写法。
 
-浏览器会自动打开 <http://127.0.0.1:8788/>。`fixtures/cap-probe-app` 是仓库自带的示例探针应用，方便你直接体验所有功能；调试自己的应用时，把路径换成你的源码目录或 `.aix` 文件即可。想并排对比两个引擎版本，只需在页面顶部勾选两个版本，或在 URL 后加上 `?runtimes=<id>,<id>`（版本 id 见本机的 `runtimes.lock.json`）。
+浏览器会自动打开 <http://127.0.0.1:8788/>。`fixtures/cap-probe-app` 是仓库自带的示例探针应用，方便你直接体验所有功能；调试自己的应用时，把路径换成你的源码目录或 `.aix` 文件即可。想并排对比两个引擎版本，只需在页面顶部勾选两个版本，或在 URL 后加上 `?runtimes=<id>,<id>`（版本 id 用 `inklab-engine --list` 查看；也可以写通道名 `latest`、`daily`）。
 
 以上命令使用 v0.2.0。参与 InkLab 开发时请使用 `main`。[发布说明](https://github.com/1977744311/inklab/releases/tag/v0.2.0) · [贡献指南](CONTRIBUTING.md)
 
@@ -62,7 +62,8 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 | 名词 | 含义 |
 | --- | --- |
 | **AIUI 应用** | 包含 `app.json`、`app.js` 和 `pages/**/*.ink` 的源码目录；打包后为 `.aix`（zip 格式）文件。 |
-| **运行时（lane）** | Rokid `ink_web` 引擎的一个特定版本构建（由一个 JS 胶水文件和一个 WebAssembly 文件组成）。每个版本在 `runtimes.lock.json` 中有一条记录（称为一条 lane，如 `craft-0.18.0`），并锁定文件的 SHA-256 哈希。 |
+| **运行时（lane）** | Rokid `ink_web` 引擎的一个特定版本构建（由一个 JS 胶水文件和一个 WebAssembly 文件组成）。每个版本在 `runtimes.lock.json` 中有一条记录（称为一条 lane，如 `npm-ink-0.20.0`），并锁定文件的 SHA-256 哈希。 |
+| **通道（channel）** | 指向「最新的那条 lane」的活名字：`latest`（最新正式版，也是默认）、`daily`（最新构建，含每日构建）、`studio`（AIUI Studio 网页版内嵌的那个）。项目脚本里写通道名；只有要复现某次旧结果时才写具体 lane id。 |
 | **宿主能力** | 应用向眼镜系统调用的硬件与系统接口：语音、相机、传感器、电池、蓝牙、网络、LLM。InkLab 在浏览器中提供这些接口的模拟实现。 |
 | **场景（Scenario）** | 定义操作步骤与检查条件的小型 JS 模块。InkLab 内置了通用的 `smoke`（冒烟测试）场景；应用专属的场景放在应用自己的 `<app>/e2e/scenarios/` 目录下。 |
 | **截图基线（Baseline）** | 保存在 `<app>/e2e/baselines/` 下的参考截图，附带源码与引擎指纹，用于像素级视觉回归比对。 |
@@ -75,9 +76,9 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 | 命令 | 作用 |
 | --- | --- |
 | `inklab <应用目录\|包.aix> [--port 8788] [--open] [--compare-with <目录\|包.aix>]` | 启动本地工作台。`--compare-with` 可对比另一份源码或 `.aix` 包的文件差异。 |
-| `inklab-e2e <应用目录\|包.aix> [--scenario id] [--runtime id] [--accept] [--headed]` | 在无头 Chrome 中运行场景并比对截图基线，结果写入 `<app>/e2e/report/last-run.json`。加上 `--accept` 会将本次截图保存为新基线。 |
+| `inklab-e2e <应用目录\|包.aix> [--scenario id] [--runtime latest\|daily\|<lane>] [--accept] [--headed]` | 在无头 Chrome 中运行场景并比对截图基线，结果写入 `<app>/e2e/report/last-run.json`。加上 `--accept` 会将本次截图保存为新基线。 |
 | `inklab-matrix <应用目录\|包.aix> [--scenario id] [--runtime a,b] [--all-lighting]` | 将同一场景跨多个引擎版本（及不同环境光背景）运行一遍，生成差异对比报告。 |
-| `inklab-engine [<lane>…] [--check\|--discover]` | 检查 Craft 和 AIUI Studio 站点上的引擎版本，把新版本记入 `runtimes.lock.json`，并下载 `.engine/` 中缺失的文件。`--check` 仅在本地校验文件完整性；`--discover` 仅预览线上是否有新版本（有新版本时退出码为 2）。 |
+| `inklab-engine [<lane>…] [--check\|--discover\|--list]` | 检查 npm（`@yodaos-pkg/ink` 的 `latest`、`daily` 标签）、AIUI Studio 和 Craft 上的引擎版本，把新版本记入 `runtimes.lock.json`，并下载 `.engine/` 中缺失的文件。`--check` 仅在本地校验文件完整性；`--discover` 仅预览线上是否有新版本（有新版本时退出码为 2）；`--list` 列出本机的 lane 和各通道当前指向哪条（`--list --json` 给脚本用）。 |
 | `inklab-device <应用目录> --serial SN --scenario ID` | 通过 USB 在真实眼镜上运行测试场景（可选）。 |
 | `npm run install-cli [-- --uninstall]` | 安装或卸载上面这些命令（见快速开始）。每个命令都支持 `--help` 和 `--version`。 |
 | `npm test` · `npm run lint` | 运行单元测试（无需联网和浏览器）· 运行 ESLint 代码检查（需先执行 `npm ci`）。 |
@@ -86,11 +87,13 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 
 ## 运行时引擎
 
-`ink_web` 是 Rokid 的闭源渲染引擎（即 Craft 和 AIUI Studio 网页所使用的引擎）。它**不包含**在本仓库及 npm 包中，InkLab 也不授予任何引擎使用权。执行 `npm run engine` 时，脚本会从 Rokid 官方服务器（`js.rokid.com`、`aiui.rokid.com`、`static.rokidcdn.com`）下载浏览器打开这些网页时加载的同名 JS 和 WASM 文件，校验 SHA-256 哈希后缓存在本地。
+`ink_web` 是 Rokid 的渲染引擎。Rokid 把它发布在 npm 上（`@yodaos-pkg/ink`：`latest` 是最新正式版，`daily` 是最新每日构建），AIUI Studio 和 Craft 网页里嵌的是更旧的构建。它**不包含**在本仓库及 npm 包中，InkLab 也不授予任何引擎使用权。执行 `inklab-engine` 时，脚本会从 npm registry 下载引擎包（按 `integrity` 校验），并从 Rokid 官方服务器（`aiui.rokid.com`、`static.rokidcdn.com`、`js.rokid.com`）下载浏览器打开这些网页时加载的同名 JS 和 WASM 文件，校验 SHA-256 哈希后缓存在本地。
+
+一般不用手动运行它：`inklab`、`inklab-e2e`、`inklab-matrix` 启动时会查一次 npm（一天最多一次），有新的 `latest` 或 `daily` 版本就自动下载，`latest`、`daily` 通道随之指向新版本。查不了（断网、registry 慢）只打一行警告，照常用本机已有的引擎。`INKLAB_NO_UPDATE=1` 关掉检查，`INKLAB_UPDATE=force` 立即检查，`INKLAB_NPM_REGISTRY` 可改用镜像。
 
 引擎清单与二进制文件均属于本机状态，已被 `.gitignore` 忽略且不会打入 npm 包：
 
-- `runtimes.lock.json`：首次运行 `npm run engine` 时自动生成的版本清单，记录每个引擎版本的来源、版本号和 SHA-256 哈希（首次下载时记录哈希，后续下载必须完全一致）。列表第一项为默认版本；若本地尚未缓存该版本，启动时会自动切换到其他已缓存版本并打印提示。
+- `runtimes.lock.json`：首次下载引擎时自动生成的版本清单，记录每个引擎版本的来源、版本号和 SHA-256 哈希（首次下载时记录哈希，后续下载必须完全一致）。默认版本是本机已缓存版本里的 `latest` 通道，与列表顺序无关。项目可以在应用目录的 `inklab.config.json`（不进发布包）里写 `"runtime": "daily"`（通道名或 lane id）换成自己的默认；`INKLAB_RUNTIME=<lane 或通道名>` 可临时覆盖两者，`--runtime` / `?runtimes=` 优先级最高。
 - `.engine/`：存放下载好的引擎文件，每个版本一个子目录（可通过环境变量 `INKLAB_ENGINE_DIR` 修改存放位置）。下载过程会显示速度与剩余时间，单文件超过 30 秒无响应会自动重试（最多 3 次）。
 
 版本发现机制与手动添加引擎版本的方法见[使用指南](docs/guide.md#引擎版本会漂)。请确保在符合 Rokid 服务条款的前提下使用引擎。
@@ -107,12 +110,14 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 
 | 现象 | 解决办法 |
 | --- | --- |
-| `runtimes.lock.json 里还没有运行时…` 或 `还没取任何运行时…` | 本地还没有下载引擎。联网运行 `npm run engine` 即可自动获取并下载。 |
+| `runtimes.lock.json 里还没有运行时…` 或 `还没取任何运行时…` | 本地还没有下载引擎。联网运行 `inklab-engine` 即可自动获取并下载。 |
+| 启动时提示 `没能检查 npm 上的新引擎…` | 普通提示：每日检查没成功，本次用本机已有的引擎，下次启动再试。 |
+| e2e 报 `运行时不可用：…` | 这个 lane 本机没有。改写通道名（`latest`、`daily`、`studio`），或用 `inklab-engine --list` 里列出的 id。 |
 | 引擎下载很慢或卡住 | 超过 30 秒无数据会自动重试。你也可以直接从其他电脑拷贝 `runtimes.lock.json` 和 `.engine/` 目录，再运行 `npm run engine -- --check` 校验。 |
 | 页面显示 `forbidden: host` | 请使用 `http://127.0.0.1:<端口>/` 或 `http://localhost:<端口>/` 访问。出于安全考虑，服务会拒绝局域网 IP 或反向代理域名访问。 |
 | `EADDRINUSE` | 默认端口被占用，加上 `--port <新端口>` 启动即可。 |
 | `找不到 Chrome`（e2e） | 安装 Chrome/Chromium，或设置环境变量 `INKLAB_CHROME=/path/to/chrome`。 |
-| 启动时提示 `默认运行时 … 本机没有缓存` | 普通提示：`runtimes.lock.json` 里的第一个版本还没下载到本地，已自动切换为另一个已下载的版本。 |
+| 启动时提示 `默认运行时 … 本机没有缓存` | 普通提示：清单里最新的正式版还没下载到本地，本次用已下载的最新正式版。运行 `inklab-engine` 下载即可。 |
 
 ## 文档导航
 
