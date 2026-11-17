@@ -29,7 +29,7 @@ test('各命令入口都能装载，缺参数时给出用法与非零退出码',
     ['inklab.mjs', 1, '用法'],
     ['inklab-e2e.mjs', 2, '用法'],
     ['inklab-matrix.mjs', 1, '用法'],
-    ['inklab-device.mjs', 1, 'Usage'],
+    ['inklab-device.mjs', 1, '用法'],
   ]) {
     const r = run(name);
     assert.equal(r.status, code, `${name}: ${r.stderr}`);
@@ -62,7 +62,7 @@ test('全新 clone 没有清单：engine / start / matrix 都说怎么生成它�
     ]) {
       const r = run(name, args, { repo });
       assert.equal(r.status, 1, `${name}: ${r.stdout}${r.stderr}`);
-      assert.match(r.stderr, /runtimes\.lock\.json 里还没有运行时：联网后运行 npm run engine/, name);
+      assert.match(r.stderr, /runtimes\.lock\.json 里还没有运行时：联网后运行 inklab-engine/, name);
     }
   } finally {
     rmSync(app, { recursive: true, force: true });

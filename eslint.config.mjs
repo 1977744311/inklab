@@ -24,7 +24,7 @@ export default [
     languageOptions: { globals: { ...globals.browser } },
   },
   {
-    files: ['bin/**/*.mjs', 'lib/node/**/*.mjs', '__tests__/**/*.mjs', 'eslint.config.mjs'],
+    files: ['bin/**/*.mjs', 'lib/node/**/*.mjs', 'scripts/**/*.mjs', '__tests__/**/*.mjs', 'eslint.config.mjs'],
     languageOptions: { globals: { ...globals.node } },
   },
 ];

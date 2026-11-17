@@ -287,7 +287,7 @@ test('--discover 发现未收录的构建：只取它的 wasm 算哈希，打印
   assert.equal(run.code, 2, run.stdout + run.stderr);
   assert.match(run.stdout, /✓ index-glue-a\.js {2}已收录为 known-a/);
   assert.match(run.stdout, /✗ index-glue-b\.js {2}没有任何 lane 收录它/);
-  assert.match(run.stdout, /npm run engine 会把下面这条追加进 runtimes\.lock\.json/);
+  assert.match(run.stdout, /inklab-engine 会把下面这条追加进 runtimes\.lock\.json/);
 
   const entry = entryOf(run.stdout);
   assert.equal(entry.id, B_ID);
@@ -491,7 +491,7 @@ test('没有清单、站点又连不上：不创建任何文件，退出码 1，
   const run = await freshClone([], { url: 'http://127.0.0.1:1/craft' });
   assert.equal(run.code, 1, run.stdout + run.stderr);
   assert.match(run.stdout, /⚠ 没能检查 http:\/\/127\.0\.0\.1:1\/craft/);
-  assert.match(run.stderr, /runtimes\.lock\.json 里还没有运行时：联网后运行 npm run engine/);
+  assert.match(run.stderr, /runtimes\.lock\.json 里还没有运行时：联网后运行 inklab-engine/);
   assert.equal(run.lockAfter, null);
   assert.deepEqual(await readdir(run.cache), []);
 });
@@ -499,7 +499,7 @@ test('没有清单、站点又连不上：不创建任何文件，退出码 1，
 test('没有清单时 --check：不发请求，说怎么生成', async () => {
   const run = await freshClone(['--check']);
   assert.equal(run.code, 1, run.stdout + run.stderr);
-  assert.match(run.stderr, /runtimes\.lock\.json 里还没有运行时：联网后运行 npm run engine/);
+  assert.match(run.stderr, /runtimes\.lock\.json 里还没有运行时：联网后运行 inklab-engine/);
   assert.deepEqual(hits, {});
   assert.equal(run.lockAfter, null);
 });

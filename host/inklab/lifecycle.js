@@ -90,7 +90,7 @@ export async function start() {
       renderRuntimePicker(info);
       setSourceBadge(info);
       const selectedRuntimes = selectedRuntimeRows(info);
-      if (!selectedRuntimes.length) throw new Error('没有可用的运行时 lane；先跑 npm run engine');
+      if (!selectedRuntimes.length) throw new Error('没有可用的运行时 lane；先跑 inklab-engine');
       state.runtimeSelection = selectedRuntimes.map((runtime) => runtime.id);
       renderStageShells(selectedRuntimes);
       applyPreviewMode(state.previewMode, { record: false });

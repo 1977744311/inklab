@@ -226,7 +226,7 @@ test('aborted recording upload leaves no partial movie or registered artifact', 
 });
 
 test('device CLI requires explicit scenario and serial', () => {
-  assert.throws(() => parseDeviceArgs(['apps/a']), /Usage/);
+  assert.throws(() => parseDeviceArgs(['apps/a']), /用法/);
   assert.deepEqual(parseDeviceArgs(['apps/a', '--serial', 'A', '--scenario', 'one', '--scenario', 'two', '--out', '/tmp/report']),
     { input: 'apps/a', serial: 'A', scenarios: ['one', 'two'], output: '/tmp/report', list: false });
 });

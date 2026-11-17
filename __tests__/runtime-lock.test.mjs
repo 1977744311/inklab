@@ -29,7 +29,7 @@ test('URL 可多选 lane，自动去重/过滤并回退默认', () => {
 });
 
 test('清单为空时直接报错并说怎么生成，不静默退化；只有往空清单里追加时才允许为空', () => {
-  assert.throws(() => normalizeRuntimeRegistry([]), /还没有运行时.*npm run engine/);
+  assert.throws(() => normalizeRuntimeRegistry([]), /还没有运行时.*inklab-engine/);
   const empty = normalizeRuntimeRegistry([], { allowEmpty: true });
   assert.equal(empty.default, null);
   assert.equal(empty.runtimes.length, 0);

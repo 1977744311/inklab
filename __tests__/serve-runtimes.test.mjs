@@ -64,7 +64,7 @@ test('默认 lane 是 cache-only 且本机没有：改用可用的 lane，并说
 test('默认 lane 可下载但本机还没取：改用可用的 lane，并给出取这条 lane 的命令', async () => {
   const { lines, runtimeDefault } = await startWith([lane('fake'), lane('other')]);
   assert.equal(runtimeDefault, 'other');
-  assert.ok(lines.includes('[inklab] 默认运行时 fake 本机没有缓存（npm run engine -- fake 可拉取），本次默认用 other'), lines.join('\n'));
+  assert.ok(lines.includes('[inklab] 默认运行时 fake 本机没有缓存（inklab-engine fake 可拉取），本次默认用 other'), lines.join('\n'));
 });
 
 test('默认 lane 就在缓存里：不打这条提示', async () => {
@@ -77,6 +77,6 @@ test('没有清单（全新 clone 还没跑过 npm run engine）：起不来，�
   await rm(join(tool, 'runtimes.lock.json'), { force: true });
   await assert.rejects(
     serve.createInkLabServer({ input: appDir, port: 0, env: {}, log: () => {} }),
-    /runtimes\.lock\.json 里还没有运行时：联网后运行 npm run engine/,
+    /runtimes\.lock\.json 里还没有运行时：联网后运行 inklab-engine/,
   );
 });

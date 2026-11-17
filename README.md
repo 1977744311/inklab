@@ -28,9 +28,12 @@ You need Node.js 22 or later and Chrome. There are no npm runtime dependencies t
 ```bash
 git clone --branch v0.2.0 --depth 1 https://github.com/1977744311/inklab.git
 cd inklab
-npm run engine                              # first run: discovers engines on Craft and AIUI Studio and downloads them
-npm start -- fixtures/cap-probe-app --open
+npm run install-cli                         # symlink inklab, inklab-e2e and friends into ~/.local/bin
+inklab-engine                               # first run: discovers engines on Craft and AIUI Studio and downloads them
+inklab fixtures/cap-probe-app --open
 ```
+
+`install-cli` symlinks the commands into `~/.local/bin` (`--bin-dir` picks another directory), independent of the Node version fnm or nvm currently selects. The links point at this clone, so `git pull` updates the commands, and the engine cache stays in this clone's `.engine/`. After that, run `inklab <app-dir>` or `inklab-e2e <app-dir>` from any project. `npm run install-cli -- --uninstall` removes them. Inside this repository the `npm start --` / `npm run e2e --` forms keep working.
 
 The workbench opens at <http://127.0.0.1:8788/>. `fixtures/cap-probe-app` is a built-in probe app so you can try every feature right away; when you have your own app, pass its source directory or `.aix` file instead. To compare two engine versions side by side, tick two lanes in the workbench or open `?runtimes=<id>,<id>` (lane ids are stored in `runtimes.lock.json`).
 
@@ -76,11 +79,12 @@ Your app's tests live in your app's repository; InkLab only provides the host ru
 
 | Command | What it does |
 | --- | --- |
-| `npm start -- <app-dir\|pkg.aix> [--port 8788] [--open] [--compare-with <dir\|pkg.aix>]` | Start the workbench. `--compare-with` shows a file-level diff against a second source or `.aix`. |
-| `npm run e2e -- <app-dir\|pkg.aix> [--scenario id] [--runtime id] [--accept] [--headed]` | Run scenarios in headless Chrome, compare screenshot baselines, and write the report to `<app>/e2e/report/last-run.json`. `--accept` saves this run's screenshots as new baselines. |
-| `npm run matrix -- <app-dir\|pkg.aix> [--scenario id] [--runtime a,b] [--all-lighting]` | Run one scenario across multiple runtime lanes (and ambient lighting backgrounds) and summarise differences. |
-| `npm run engine [-- <lane>…] [--check\|--discover]` | Discover engine builds on Craft and AIUI Studio, append new lanes to `runtimes.lock.json`, and download missing files into `.engine/`. `--check` verifies local files offline; `--discover` previews new builds without writing (exits with 2 if found). |
-| `npm run e2e:device -- <app-dir> --serial SN --scenario ID` | Run a scenario on real glasses over USB (optional). |
+| `inklab <app-dir\|pkg.aix> [--port 8788] [--open] [--compare-with <dir\|pkg.aix>]` | Start the workbench. `--compare-with` shows a file-level diff against a second source or `.aix`. |
+| `inklab-e2e <app-dir\|pkg.aix> [--scenario id] [--runtime id] [--accept] [--headed]` | Run scenarios in headless Chrome, compare screenshot baselines, and write the report to `<app>/e2e/report/last-run.json`. `--accept` saves this run's screenshots as new baselines. |
+| `inklab-matrix <app-dir\|pkg.aix> [--scenario id] [--runtime a,b] [--all-lighting]` | Run one scenario across multiple runtime lanes (and ambient lighting backgrounds) and summarise differences. |
+| `inklab-engine [<lane>…] [--check\|--discover]` | Discover engine builds on Craft and AIUI Studio, append new lanes to `runtimes.lock.json`, and download missing files into `.engine/`. `--check` verifies local files offline; `--discover` previews new builds without writing (exits with 2 if found). |
+| `inklab-device <app-dir> --serial SN --scenario ID` | Run a scenario on real glasses over USB (optional). |
+| `npm run install-cli [-- --uninstall]` | Install or remove the commands above (see Quick start). Every command accepts `--help` and `--version`. |
 | `npm test` · `npm run lint` | Unit test suite (needs no external network or browser) · ESLint (`npm ci` first; devDependencies are for linting only). |
 
 LLM access is optional: set `INKLAB_LLM_ENDPOINT`, `INKLAB_LLM_API_KEY` and `INKLAB_LLM_MODEL`, or create an untracked `llm.local.json`. Without it, apps receive "model unavailable" and take their offline path. Details are in the [guide](docs/guide.md#llm-怎么接).

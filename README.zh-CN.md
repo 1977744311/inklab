@@ -28,9 +28,12 @@ InkLab 和官方 Craft 网页使用的是同一个渲染引擎，因此**它能�
 ```bash
 git clone --branch v0.2.0 --depth 1 https://github.com/1977744311/inklab.git
 cd inklab
-npm run engine                              # 首次运行：从 Craft 和 AIUI Studio 站点获取引擎并缓存到本地
-npm start -- fixtures/cap-probe-app --open
+npm run install-cli                         # 把 inklab、inklab-e2e 等命令软链到 ~/.local/bin
+inklab-engine                               # 首次运行：从 Craft 和 AIUI Studio 站点获取引擎并缓存到本地
+inklab fixtures/cap-probe-app --open
 ```
+
+`install-cli` 把命令软链到 `~/.local/bin`（`--bin-dir` 可换目录），跟 fnm / nvm 当前选的 Node 版本无关；链接指向这份 clone，`git pull` 之后命令就是新版，引擎缓存也仍在这份 clone 的 `.engine/` 里。之后在任何项目目录里都可以直接用 `inklab <应用目录>`、`inklab-e2e <应用目录>`。`npm run install-cli -- --uninstall` 卸载。不想装命令时，在本仓库里照旧用 `npm start --`、`npm run e2e --` 等写法。
 
 浏览器会自动打开 <http://127.0.0.1:8788/>。`fixtures/cap-probe-app` 是仓库自带的示例探针应用，方便你直接体验所有功能；调试自己的应用时，把路径换成你的源码目录或 `.aix` 文件即可。想并排对比两个引擎版本，只需在页面顶部勾选两个版本，或在 URL 后加上 `?runtimes=<id>,<id>`（版本 id 见本机的 `runtimes.lock.json`）。
 
@@ -71,11 +74,12 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 
 | 命令 | 作用 |
 | --- | --- |
-| `npm start -- <应用目录\|包.aix> [--port 8788] [--open] [--compare-with <目录\|包.aix>]` | 启动本地工作台。`--compare-with` 可对比另一份源码或 `.aix` 包的文件差异。 |
-| `npm run e2e -- <应用目录\|包.aix> [--scenario id] [--runtime id] [--accept] [--headed]` | 在无头 Chrome 中运行场景并比对截图基线，结果写入 `<app>/e2e/report/last-run.json`。加上 `--accept` 会将本次截图保存为新基线。 |
-| `npm run matrix -- <应用目录\|包.aix> [--scenario id] [--runtime a,b] [--all-lighting]` | 将同一场景跨多个引擎版本（及不同环境光背景）运行一遍，生成差异对比报告。 |
-| `npm run engine [-- <lane>…] [--check\|--discover]` | 检查 Craft 和 AIUI Studio 站点上的引擎版本，把新版本记入 `runtimes.lock.json`，并下载 `.engine/` 中缺失的文件。`--check` 仅在本地校验文件完整性；`--discover` 仅预览线上是否有新版本（有新版本时退出码为 2）。 |
-| `npm run e2e:device -- <应用目录> --serial SN --scenario ID` | 通过 USB 在真实眼镜上运行测试场景（可选）。 |
+| `inklab <应用目录\|包.aix> [--port 8788] [--open] [--compare-with <目录\|包.aix>]` | 启动本地工作台。`--compare-with` 可对比另一份源码或 `.aix` 包的文件差异。 |
+| `inklab-e2e <应用目录\|包.aix> [--scenario id] [--runtime id] [--accept] [--headed]` | 在无头 Chrome 中运行场景并比对截图基线，结果写入 `<app>/e2e/report/last-run.json`。加上 `--accept` 会将本次截图保存为新基线。 |
+| `inklab-matrix <应用目录\|包.aix> [--scenario id] [--runtime a,b] [--all-lighting]` | 将同一场景跨多个引擎版本（及不同环境光背景）运行一遍，生成差异对比报告。 |
+| `inklab-engine [<lane>…] [--check\|--discover]` | 检查 Craft 和 AIUI Studio 站点上的引擎版本，把新版本记入 `runtimes.lock.json`，并下载 `.engine/` 中缺失的文件。`--check` 仅在本地校验文件完整性；`--discover` 仅预览线上是否有新版本（有新版本时退出码为 2）。 |
+| `inklab-device <应用目录> --serial SN --scenario ID` | 通过 USB 在真实眼镜上运行测试场景（可选）。 |
+| `npm run install-cli [-- --uninstall]` | 安装或卸载上面这些命令（见快速开始）。每个命令都支持 `--help` 和 `--version`。 |
 | `npm test` · `npm run lint` | 运行单元测试（无需联网和浏览器）· 运行 ESLint 代码检查（需先执行 `npm ci`）。 |
 
 大模型（LLM）配置是可选的：可通过环境变量 `INKLAB_LLM_ENDPOINT`、`INKLAB_LLM_API_KEY`、`INKLAB_LLM_MODEL` 配置，或在项目根目录创建本地文件 `llm.local.json`。未配置时，应用会收到“模型不可用”提示并走离线逻辑。详见[使用指南](docs/guide.md#llm-怎么接)。

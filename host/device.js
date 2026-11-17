@@ -49,7 +49,7 @@ async function refresh() {
   const connected = state.status.devices.some((d) => d.serial === state.status.serial && d.state === 'device');
   $('connection').textContent = state.status.serial || (state.status.enabled ? '未选择设备' : '未启用真机');
   $('connection').classList.toggle('connected', connected);
-  if (!state.status.enabled) note('请用 npm start -- <工程目录> --device 启动服务。');
+  if (!state.status.enabled) note('请用 inklab <工程目录> --device 启动服务。');
   else if (state.status.error) note(state.status.error, true);
   else note(connected ? '眼镜已连接。请在眼镜中打开待测应用。' : '选择一台已授权的眼镜。');
   state.scenarios = await api('scenarios');

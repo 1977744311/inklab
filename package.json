@@ -44,7 +44,8 @@
     "engine": "node bin/inklab-engine.mjs",
     "e2e": "node bin/inklab-e2e.mjs",
     "matrix": "node bin/inklab-matrix.mjs",
-    "e2e:device": "node bin/inklab-device.mjs"
+    "e2e:device": "node bin/inklab-device.mjs",
+    "install-cli": "node scripts/install-cli.mjs"
   },
   "files": [
     "bin",
