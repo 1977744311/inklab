@@ -69,6 +69,19 @@ a { color: var(--green); text-underline-offset: 3px; }
 .device-picker { flex-wrap: nowrap; }
 .device-picker select { flex: 1; }
 .notice { margin: 6px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.device-warnings { margin: 6px 0 0; padding-left: 18px; font-size: 12px; color: #a5622f; }
+.device-warnings li.info { color: var(--muted); }
+#push-state[data-status="failed"] { color: #a5382f; }
+#push-state[data-status="done"] { color: #2f7a3a; }
+.device-logs { list-style: none; margin: 6px 0 0; padding: 0; max-height: 260px; overflow-y: auto; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.device-logs li { padding: 1px 0; border-bottom: 1px solid color-mix(in srgb, var(--muted) 15%, transparent); overflow-wrap: anywhere; }
+.device-logs li[data-level="warn"] { color: #a5622f; }
+.device-logs li[data-level="error"] { color: #a5382f; }
+.device-logs .src { display: inline-block; min-width: 3.5em; color: var(--muted); }
+.log-filters label { margin-right: 10px; }
+.agents-list { list-style: none; margin: 6px 0; padding: 0; font-size: 12px; }
+.agents-list li { display: flex; justify-content: space-between; gap: 6px; align-items: center; padding: 2px 0; }
+.agents-list small { color: var(--muted); }
 .settings-shortcut { display: none; }
 
 .section-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

@@ -5,32 +5,72 @@ InkLab 支持通过 USB 在已连接的真实眼镜上执行测试场景。这�
 ## 前置条件
 
 - 电脑已安装 `adb`（可通过 `ADB` 环境变量指定路径）和 `ffmpeg`（用于实时投屏视频解码，可通过 `FFMPEG` 环境变量指定路径）。
-- 截图文字自动识别（OCR）依赖 macOS 系统自带的 Vision 接口；在其他操作系统上仍能正常按键和截图，但包含文字识别断言（`expectText`）的场景会标记为 `unsupported`。
-- 用 USB 连接已授权调试的眼镜，保持手机端 Rokid App 连接，并在眼镜里手动打开一次待测的 AIUI 应用。
+- 「推到真机」要打包，需要本机装好 `aiui` 命令（aiui-toolkit 里 `npm run install-cli`）；没装时也可以直接给打好的 `.aix`。
+- 截图文字自动识别（OCR）依赖 macOS 系统自带的 Vision 接口；在其他操作系统上仍能正常操作和截图，但包含文字识别断言（`expectText`）的场景会标记为 `unsupported`。
+- 用 USB 连接已授权调试的眼镜（眼镜里打开 adb 调试；没打开时 `dumpsys`、`input` 等命令会被直接断开）。
 - 如需向应用直接发送语音识别文本，应用需配置设备控制脚本，见[应用提供的设备适配器](#应用提供的设备适配器)。
 
 ## 启动真机工作台
 
 ```bash
-npm start -- <app> --device --serial <serial> [--device-output DIR]
+inklab <app> --device --serial <serial> [--device-output DIR]
 # 浏览器打开 http://127.0.0.1:8788/device ，或点击顶部模式栏的「USB 真机」
 ```
 
-- 从任一工作台顶部点「真机 + 模拟器」进入并排联调，也可以直接打开 `/device?simulator=1`。两块预览使用同尺寸的 3:4 外框，模拟器的横屏画面按原比例居中。桌面端的 USB 连接、场景和证据在预览右侧，详情可在侧栏内滚动。使用同一个应用服务，在两端加入同一房间。真机需先安装对应调试包并打开应用。
-- **远程操作与截图取证**：网页直接展示 ADB 从眼镜端截取的完整原始 PNG（`480×640`）。你可以在网页上点击方向键、确认、返回、触发镜腿长按唤醒，或向支持适配器的应用直接发送语音文字；右侧同步展示执行步骤、真实截图、OCR 识别出的文字和最终测试报告。注意：修改本地源码不会自动更新眼镜里已安装的应用包，更新真机应用仍需通过 Studio 重新打包安装。
+- **设备识别**：选中眼镜后，顶部显示型号、Android 版本、眼镜上的 Ink 版本（`debug.rokid.ink.version`）、对应的模拟器引擎和触控板档案，并逐条提示会让测试失真的状态：
+  - 佩戴检测判定没戴：触控板进入低功耗，真手势不上报（InkLab 回放的手势不受影响）；
+  - 有无障碍服务在接管按键（例如 Quick Menu 会拦长按镜腿）；
+  - AIUI 开发者模式没开（推送、打开时会临时打开，用完恢复原值）。
+- **真机 + 模拟器并排**：从任一工作台顶部点「真机 + 模拟器」，或打开 `/device?simulator=1`。模拟器的引擎自动对齐眼镜上的 Ink 版本：构建号一致的优先，其次同一版本号（优先正式版）、同一版本线（major.minor）。勾选「真机手势同时发给模拟器」后，手势按钮会同时在模拟器上按下触控板真实会发的那几个键（前后滑各带两个方向）。
+- **推到真机**：点「推到真机」依次完成打包（`aiui build`）→ 安装调试包 → 打开选中的页面（前台有全屏应用挡着时让它退下，见下）→ 等第一帧 → 截图（画面还是黑的就等一会儿重拍）。安装走固件开发者接口 `content://com.rokid.aiui.develop`，和官方 `aix install` 同一套协议（`prepare` 拿到收件目录 → 推 `package.aix` 与 `agent.json` → `apply` → `status`），装好后再核对 `developer_manifest.json` 里的 MD5；打开走 `content://com.rokid.aiui.develop` 的 `open`，并从 AIUI 运行时日志确认它真的显示到了全屏（只看这次操作之后的日志：眼镜的日志缓冲只有 1 MiB，很快被冲掉，不能靠更早的记录推断前台）。这是本机调试安装，与 Studio 发布分开，不能当作已发布的证据。
+- **保存即推送**：默认开启。被测工程是源码目录且选了设备时，保存源码会自动推一次；推送进行中又保存的，结束后合成一次再推。可在推送面板取消勾选，或在 `inklab.config.json` 写 `"device": { "autoPush": false }`。
+- **前台被挡着**：AIUI 同一时间只显示一个全屏应用，新打开的实例**不会顶掉**已在前台的实例——自己的旧实例也一样，所以改了代码重推时必须先让旧实例退下。InkLab 的做法：打开后等不到显示，就做一次真双击（应用收到返回）；看到前台开始退回就等它退完（约 2 秒），排着的新实例会自动显示，等不到就重新打开一次；应用把返回当成「上一层」时再双击，最多 4 次。退回过程中不连续双击（会把助手整个关掉，排着的实例也丢了），也不替应用去点「退出吗？」的确认。实测整活、出招吧在各自菜单、别的应用在前台、自己的旧实例在前台三种情况下都能显示出新包。
+- **触控板手势**：手势按钮（向前滑、向后滑、单击、双击、长按）直接往触控板设备写原始按键，系统收到的和手指操作完全一样（扫描码、来源设备都一致）。时序取自实测：每次接触先发 `KEY_DASHBOARD`（系统里是 `KEYCODE_NOTIFICATION`）；单击约 0.5 秒后发 `ENTER`；双击发 `BACK`；长按发 `PROG1`（`KEYCODE_PROG_BLUE`）；前滑同时发 `RIGHT` 和 `DOWN`，后滑同时发 `LEFT` 和 `UP`。眼镜 10 秒熄屏，熄屏时的第一个键只会唤醒屏幕，所以每个手势前先确认屏幕亮着。没有触控板档案的设备退回 `input keyevent`（双击、长按做不了）。
+- **真机日志**：工作台实时显示眼镜上与 AIUI 有关的日志，分三类：应用自己的 `console`（`ink_script::console`）、AIUI 运行时事件（打开、全屏、退回卡片等，压成一行）、Ink 引擎日志（默认收起）。推送结果和场景报告里会附上这段时间的应用日志与告警、错误。
+- **眼镜上的调试包**：推送面板里可以展开开发者通道的调试包列表，点「打开」直接打开（别的调试包从它 `app.json` 的第一页打开）。手机同步装的智能体在系统私有目录，adb 读不到名字，不在列表里。
+- **远程操作与截图取证**：网页直接展示 ADB 从眼镜端截取的完整原始 PNG（`480×640`），右侧同步展示执行步骤、真实截图、OCR 识别出的文字和最终测试报告。
 - **实时投屏**：点击「开始实时投屏」后，眼镜端通过 `screenrecord` 连续输出 `480×640` 的 H.264 视频流，由本机 `ffmpeg` 实时解码后推送到浏览器显示（无需循环调用慢速的 `adb screencap`）。界面会显示实时帧率（FPS）、画面刷新间隔以及本机解码到浏览器渲染的耗时（注：该耗时不包含眼镜端编码与 USB 传输时间）。投屏画面经 JPEG 压缩仅用于流畅预览，测试报告中的截图证据始终使用独立的无损 PNG。由于 Android 系统限制单次录屏时长，服务每 165 秒会自动无缝重连一次视频流。
 - **录制演示视频**：点击「录制视频」可直接将浏览器中的投屏画面录制为无声 MP4（不支持 MP4 的浏览器自动降级为 WebM），不会额外增加眼镜端的编码负担。结束录制后视频自动保存到 `<输出目录>/recordings`（单文件上限 64 MiB，自动记录文件大小与 SHA-256；默认位于系统临时目录 `inklab-device-runs/` 下，可通过 `--device-output DIR` 自定义保存目录）。
-- **进程清理与安全限制**：停止投屏、关闭网页、连接断开或退出服务时，InkLab 会自动清理本次启动的眼镜端 `screenrecord` 和本机解码进程；投屏期间仅在无操作时发送临时唤醒信号防息屏，不会修改眼镜系统的常亮设置。本地服务仅监听 `127.0.0.1`，所有设备控制请求均校验同源 Origin 与当次会话 Token。
+- **进程清理与安全限制**：停止投屏、关闭网页、连接断开或退出服务时，InkLab 会自动清理本次启动的眼镜端 `screenrecord`、`logcat` 和本机解码进程；投屏期间仅在无操作时发送临时唤醒信号防息屏，不会修改眼镜系统的常亮设置。本地服务仅监听 `127.0.0.1`，所有设备控制请求均校验同源 Origin 与当次会话 Token。
+
+### 调试包的身份
+
+调试包的 agentId 必须是 `develop.rokid.<业务>.<id>`（官方 aix 的格式要求）。官方 `aix install` 装 `.aix` 时会改用包里写死的 ID（`aiui build` 每次打包都不同），所以 InkLab 直接用同一套协议、但保持固定 ID。默认按项目名生成 `develop.rokid.inklab.<项目>`（应用目录叫 `app` 时取上一级目录名，去掉 `aiui-` 前缀），名字取 `app/AGENTS.md` 的 Name 加「（调试）」，权限按 `app.json` 补齐 Studio 的写法。可以在应用目录的 `inklab.config.json` 里覆盖：
+
+```json
+{
+  "device": {
+    "agentId": "develop.rokid.inklab.zhenghuo",
+    "agentName": "整活派对（调试）",
+    "page": "pages/index/index",
+    "autoPush": true
+  }
+}
+```
+
+可写的字段：`agentId`、`agentName`、`agentPrompt`、`page`（默认打开哪页）、`autoPush`、`permissions`、`inkVersion`、`nativeVersion`。同一个 agentId 重推时系统回执 `UPDATED`，不需要改版本号。
 
 ## 命令行无头运行
 
-无需打开浏览器，直接在命令行运行真机测试场景：
+不开浏览器也能操作眼镜（连着一台设备时可省略 `--serial`）：
 
 ```bash
-npm run e2e:device -- <app> --list
-npm run e2e:device -- <app> \
+inklab-device info                               # 型号、Ink 版本、对应的模拟器引擎、触控板档案和警告（有警告时退出码 2）
+inklab-device push <app> [--page pages/x/index]  # 打包 → 安装调试包 → 打开 → 截图（没显示到前台时退出码 2）
+inklab-device open <app> [--page pages/x/index]  # 只打开本工程的调试包
+inklab-device open --agent <agentId> --page <页面>  # 按 ID 打开任意已装的智能体
+inklab-device exit                               # 真双击退出前台应用，并核对是否退出
+inklab-device gesture <tap|double-tap|long-press|forward|backward|wake> [--hold-ms 1000]
+inklab-device agents                             # 列出开发者通道的调试包
+```
+
+运行真机场景：
+
+```bash
+inklab-device <app> --list
+inklab-device <app> \
   --serial <serial> \
-  --scenario device-greeting-readonly --scenario device-settings-readonly \
+  --scenario device-greeting-readonly --scenario menus \
   --out /tmp/inklab-device-runs
 ```
 
@@ -54,6 +94,8 @@ InkLab 仓库自身**不内置**特定产品的 ADB 控制脚本：如何在真�
 | `asrText` | 是否支持直接注入语音识别文字。必须显式设为 `true` 才允许执行 `say` 步骤；默认为 `false`（此时包含 `say` 的真机场景在运行前会被标为 `unsupported`）。 |
 | `controlScript` | 控制脚本路径（相对于被测应用根目录），默认为 `scripts/glasses-control.mjs`。 |
 
+有触控板档案的眼镜上，按键与长按唤醒由 InkLab 直接用真触控板手势完成，不再调用适配器；适配器只负责 `say` 文字注入，以及没有触控板档案时的按键与唤醒。
+
 InkLab 会按以下命令行格式调用该脚本（单次调用超时时间为 120 秒）：
 
 ```bash
@@ -73,7 +115,10 @@ node <controlScript> <command> [value] --serial <序列号> --wait-ms <毫秒> [
 
 ## 编写与运行真机场景
 
-真机测试场景保存在被测应用的 `<app>/e2e/device-scenarios/*.json` 目录下：
+真机场景有两个来源：
+
+- **模拟器的 `.mjs` 场景**（`<app>/e2e/scenarios/*.mjs`）会自动列出来。InkLab 在 Node 里调用它的 `build()` 拿到步骤（场景里写的 `/app/…` 引入会映射回应用目录）。只用按键、等待、截图、长按唤醒的场景可以直接在真机上跑；方向键按触控板手势执行（前滑同时发右和下，和真机一致）。跑完在报告目录生成 `compare.html`：同名截图左边是模拟器（先找 `e2e/baselines/<场景>/`，再找 `e2e/report/<场景>/`），右边是真机原图。用到 `do` / `expect` 函数或需要模拟器上下文（`build({ caps })` 等）的场景标为不支持，并写明原因。
+- **专门写的真机场景**（`<app>/e2e/device-scenarios/*.json`），同 id 时优先于模拟器场景：
 
 ```json
 {

@@ -17,7 +17,8 @@ async function api(path, body) {
 function note(text, error = false) { $('device-note').textContent = text; $('device-note').classList.toggle('error', error); }
 function controls() {
   const connected = state.status?.enabled && state.status?.devices.some((d) => d.serial === state.status.serial && d.state === 'device');
-  for (const button of document.querySelectorAll('[data-key],#capture,#wake,#say,#run')) button.disabled = state.busy || !connected;
+  for (const button of document.querySelectorAll('[data-gesture],#capture,#wake,#say,#run,#push,#open-agent,#exit-agent')) button.disabled = state.busy || !connected;
+  $('push').disabled ||= Boolean(state.status?.agentError) || state.status?.push?.status === 'running';
   $('say').disabled ||= !state.status?.capabilities.asrText;
   $('wake').disabled ||= !state.status?.capabilities.wakeAssistant;
   $('run').disabled ||= !selectedScenario()?.support.supported;
@@ -51,7 +52,12 @@ async function refresh() {
   $('connection').classList.toggle('connected', connected);
   if (!state.status.enabled) note('请用 inklab <工程目录> --device 启动服务。');
   else if (state.status.error) note(state.status.error, true);
-  else note(connected ? '眼镜已连接。请在眼镜中打开待测应用。' : '选择一台已授权的眼镜。');
+  else if (state.status.deviceError) note(state.status.deviceError, true);
+  else note(connected ? '眼镜已连接。点「推到真机」装上调试包并打开，或在眼镜里手动打开应用。' : '选择一台已授权的眼镜。');
+  renderDevice();
+  renderPush();
+  alignSimulator();
+  connectLogs();
   state.scenarios = await api('scenarios');
   const scenarioSelect = $('scenario-select');
   const previous = scenarioSelect.value;
@@ -63,12 +69,11 @@ async function refresh() {
   if (scenarioSelect.disabled) scenarioSelect.add(new Option('暂无真机场景', ''));
   if (state.scenarios.some((s) => s.id === previous)) scenarioSelect.value = previous;
   renderScenario();
-  const manifest = await fetch('/api/manifest').then((r) => r.json());
   $('coverage').replaceChildren();
   const item = (text) => { const el = document.createElement('div'); el.className = 'coverage-item'; el.textContent = text; $('coverage').append(el); };
   item(`真实按键 / 原始截图：支持；识别文字：${state.status.capabilities.asrText ? '应用调试包' : '不支持'}；OCR：${state.status.ocr.available ? '本机 Vision' : state.status.ocr.reason || '不可用'}`);
   item('不能自动验证麦克风识音、TTS 完播；不能注入 mock caps、存储种子、传感器或模型录带。');
-  for (const file of manifest.e2e?.scenarios || []) item(`${file.split('/').pop()} · 不支持直接移植：请提供 e2e/device-scenarios/ 真机步骤。`);
+  item('模拟器的 .mjs 场景也会列出来：只用按键、等待、截图的可以直接在真机上跑（方向键按触控板手势做），跑完生成和模拟器同名截图的对照页；用到 do / expect 或模拟硬件的标为不支持。');
   const latest = state.status.recentRuns?.find((r) => r.status !== 'running');
   if (latest && !state.lastScenario && !state.busy) {
     const run = await api(`run/${latest.id}`);
@@ -83,6 +88,58 @@ async function refresh() {
     }
   }
   state.ready = true; controls(); return state.status;
+}
+function renderDevice() {
+  const device = state.status?.device;
+  const match = state.status?.runtimeMatch;
+  const how = { exact: '构建号一致', 'same-version': '同一版本', 'same-minor': '同一版本线', 'nearest-older': '最接近的旧版本', nearest: '最接近' };
+  $('device-facts').textContent = device
+    ? `${device.model || '眼镜'} · Android ${device.android || '?'} · Ink ${device.ink?.version || '未知'}`
+      + (match ? ` ↔ 模拟器 ${match.id}（${how[match.match] || match.match}）` : '')
+      + (device.touchpad ? ` · 触控板 ${device.touchpad.name}` : ' · 没有触控板档案')
+    : '';
+  $('device-warnings').replaceChildren(...(state.status?.warnings || []).map((w) => {
+    const li = document.createElement('li'); li.className = w.level; li.textContent = w.text; return li;
+  }));
+}
+const pushLabels = { idle: '未推送', running: '推送中', done: '已推送', queued: '已装上 · 未显示', failed: '失败' };
+function renderPush() {
+  const s = state.status;
+  if (!s) return;
+  const push = s.push || { status: 'idle' };
+  $('push-agent').textContent = s.agentError || (s.agent ? `${s.agent.agentName} · ${s.agent.agentId}` : '');
+  const select = $('push-page');
+  const pages = s.pages || [];
+  if (select.dataset.pages !== pages.join('|')) {
+    select.replaceChildren(...pages.map((page) => new Option(page, page)));
+    select.dataset.pages = pages.join('|');
+  }
+  if (push.page && pages.includes(push.page) && document.activeElement !== select) select.value = push.page;
+  $('auto-push').checked = push.auto === true;
+  $('push-state').textContent = pushLabels[push.status] || push.status;
+  $('push-state').dataset.status = push.status;
+  const seconds = push.finishedAt && push.startedAt ? `${((push.finishedAt - push.startedAt) / 1000).toFixed(1)} 秒` : '';
+  $('push-note').textContent = push.status === 'running' ? `${push.trigger === 'save' ? '保存后自动推送' : '推送'}：${push.stage || ''}…`
+    : push.status === 'failed' ? `第「${push.stage || '?'}」步失败：${push.error}`
+      : push.status === 'done' || push.status === 'queued'
+        ? [`${push.trigger === 'save' ? '保存后自动推送' : '推送'}完成 ${seconds}`, push.installed?.outcome, push.opened?.note || push.note].filter(Boolean).join(' · ')
+        : push.pending ? '源码有改动，等手头的操作结束后推送' : '本机调试安装：打包 → 装上调试包 → 打开 → 截图，不经过手机和 Studio。';
+  $('push-note').classList?.toggle('error', push.status === 'failed');
+  if (push.screenshot && push.screenshot.id !== state.pushShot) {
+    state.pushShot = push.screenshot.id;
+    displayShot(push.screenshot);
+  }
+}
+let simulatorAligned = false;
+function alignSimulator() {
+  const frame = $('simulator-frame');
+  if (simulatorAligned || $('simulator-panel').hidden || !frame.dataset.base) return;
+  const url = new URL(frame.dataset.base);
+  const lane = state.status?.runtimeMatch?.id;
+  if (lane && !url.searchParams.has('runtimes')) url.searchParams.set('runtimes', lane);
+  frame.src = playerUrl(url.href, 0, 1, { embedded: true });
+  simulatorAligned = true;
+  if (lane) $('simulator-note').textContent = `模拟器引擎 ${lane}，对齐眼镜上的 Ink ${state.status.device?.ink?.version}。两端加入同一房间。网络开关只影响模拟器。`;
 }
 function selectedScenario() { return state.scenarios.find((s) => s.id === $('scenario-select').value); }
 function renderScenario() {
@@ -142,6 +199,8 @@ async function runScenario(id = $('scenario-select').value) {
     } while (run.status === 'running');
     state.lastScenario = run.report;
     $('export').disabled = !run.report;
+    $('compare-link').hidden = !run.report?.compare?.url;
+    if (run.report?.compare?.url) $('compare-link').href = run.report.compare.url;
     $('report-location').textContent = run.reportFile || '';
     note(run.report?.summary || run.error || run.status, run.status === 'failed');
     state.runId = null;
@@ -153,11 +212,70 @@ $('refresh').onclick = handle(refresh);
 $('mirror-toggle').onclick = handle(() => mirrorView.toggle());
 $('connect').onclick = handle(async () => { await api('select', { serial: $('device-select').value }); await refresh(); });
 $('capture').onclick = handle(() => act(async () => displayShot(await api('capture', { name: 'manual', ocr: true }))));
-for (const button of document.querySelectorAll('[data-key]')) button.onclick = handle(() => {
+for (const button of document.querySelectorAll('[data-gesture]')) button.onclick = handle(() => {
   const { active, mode } = mirrorView.state();
   const live = active && mode === 'live';
-  return command({ command: 'key', value: button.dataset.key, waitMs: live ? 0 : 900 }, { capture: !live });
+  return command({ command: 'gesture', value: button.dataset.gesture, waitMs: live ? 0 : 900 }, { capture: !live });
 });
+const pushAction = (route, body = {}) => act(async () => {
+  const result = await api(route, body);
+  await refresh();
+  if (route === 'open' || route === 'exit') note(result.note || (route === 'open' ? (result.presented ? '已打开' : '已发出打开请求') : (result.left ? '已退出' : '没有退出')));
+  return result;
+});
+$('push').onclick = handle(() => pushAction('push', { page: $('push-page').value }));
+$('open-agent').onclick = handle(() => pushAction('open', { page: $('push-page').value }));
+$('exit-agent').onclick = handle(() => pushAction('exit'));
+$('auto-push').onchange = handle(async () => { await api('auto-push', { enabled: $('auto-push').checked }); await refresh(); });
+$('agents-section').ontoggle = handle(async () => { if ($('agents-section').open) await renderAgents(); });
+async function renderAgents() {
+  const agents = await api('agents');
+  const mine = state.status?.agent?.agentId;
+  $('agents-list').replaceChildren(...(agents.length ? agents : [null]).map((agent) => {
+    const li = document.createElement('li');
+    if (!agent) { li.textContent = '眼镜上还没有调试包'; return li; }
+    const label = document.createElement('span');
+    label.textContent = `${agent.agentName || agent.agentId}${agent.agentId === mine ? '（本工程）' : ''} `;
+    const id = document.createElement('small'); id.textContent = `${agent.agentId} · ${agent.nativeVersion}`; label.append(id);
+    const open = document.createElement('button'); open.textContent = '打开';
+    open.onclick = handle(() => pushAction('open', agent.agentId === mine ? { page: $('push-page').value } : { agentId: agent.agentId }));
+    li.append(label, open); return li;
+  }));
+}
+
+// ── 真机日志：服务端读 logcat，挑出应用日志、运行时事件和引擎日志，SSE 推过来 ──
+const logSources = () => new Set([...document.querySelectorAll('[data-log-source]:checked')].map((box) => box.dataset.logSource));
+const logLabels = { app: '应用', aiui: '运行时', ink: '引擎' };
+function appendLog(entry) {
+  const list = $('device-logs');
+  const li = document.createElement('li');
+  li.dataset.source = entry.source; li.dataset.level = entry.level;
+  li.hidden = !logSources().has(entry.source);
+  const time = new Date(entry.at).toLocaleTimeString([], { hour12: false });
+  const src = document.createElement('span'); src.className = 'src'; src.textContent = logLabels[entry.source] || entry.source;
+  li.append(`${time} `, src, ` ${entry.text}`);
+  const atBottom = list.scrollTop + list.clientHeight >= list.scrollHeight - 8;
+  list.append(li);
+  while (list.children.length > 500) list.firstElementChild.remove();
+  if (atBottom) list.scrollTop = list.scrollHeight;
+}
+let logStream = null;
+function connectLogs() {
+  if (logStream || !state.token || !state.status?.serial) return;
+  logStream = new EventSource(`/api/device/logs/events/${state.token}`);
+  logStream.onmessage = (event) => { try { appendLog(JSON.parse(event.data)); } catch { /* 坏行跳过 */ } };
+  logStream.onerror = () => { logStream?.close(); logStream = null; };
+}
+for (const box of document.querySelectorAll('[data-log-source]')) box.onchange = () => {
+  const show = logSources();
+  for (const li of $('device-logs').children) li.hidden = !show.has(li.dataset.source);
+};
+$('logs-clear').onclick = () => $('device-logs').replaceChildren();
+// 保存即推送由服务端触发：页面轮询状态，把推送进度和推送后的截图显示出来。
+setInterval(() => {
+  if (!state.ready || state.busy || document.hidden || !state.status?.enabled) return;
+  api('status').then((status) => { state.status = status; renderPush(); controls(); }).catch(() => {});
+}, 3000);
 $('say').onclick = handle(() => command({ command: 'say', value: $('speech').value, waitMs: 800 }));
 $('wake').onclick = handle(() => command({ command: 'wake-assistant', waitMs: 300 }));
 $('scenario-select').onchange = renderScenario;
@@ -179,7 +297,8 @@ if (new URLSearchParams(location.search).get('simulator') === '1') {
   url.pathname = '/'; url.searchParams.delete('simulator');
   url.searchParams.set('hybrid-seat', '1');
   url.searchParams.set('preview', 'studio');
-  frame.src = playerUrl(url.href, 0, 1, { embedded: true });
+  // 等第一次拿到设备状态再加载：模拟器引擎要对齐眼镜上的 Ink 版本（alignSimulator）。
+  frame.dataset.base = url.href;
   $('simulator-panel').hidden = false;
   document.querySelector('main').classList.add('hybrid');
 
@@ -192,6 +311,14 @@ if (new URLSearchParams(location.search).get('simulator') === '1') {
     } catch (err) { note.textContent = err.message; }
   };
   for (const button of document.querySelectorAll('[data-sim-key]')) button.onclick = controlSimulator(lab => { lab.press(button.dataset.simKey); });
+  // 真机手势同步到模拟器：发触控板真实会发的那几个键（前后滑各带两个方向）。
+  const SIM_KEYS = { forward: ['ArrowRight', 'ArrowDown'], backward: ['ArrowLeft', 'ArrowUp'], tap: ['Enter'], 'double-tap': ['Backspace'] };
+  for (const button of document.querySelectorAll('[data-gesture]')) {
+    button.addEventListener('click', () => {
+      if (!$('sync-gestures').checked || !SIM_KEYS[button.dataset.gesture]) return;
+      controlSimulator(async (lab) => { for (const key of SIM_KEYS[button.dataset.gesture]) await lab.press(key); return `模拟器也收到了：${SIM_KEYS[button.dataset.gesture].join(' + ')}`; })();
+    });
+  }
   $('simulator-reload').onclick = controlSimulator(async lab => {
     await lab.reload();
     return lab.bootError;
@@ -199,4 +326,4 @@ if (new URLSearchParams(location.search).get('simulator') === '1') {
   $('simulator-offline').onclick = controlSimulator(lab => { lab.caps.net.offline(); return '模拟器网络已断开'; });
   $('simulator-online').onclick = controlSimulator(lab => { lab.caps.net.online(); return '模拟器网络已恢复'; });
 }
-refresh().catch((err) => note(err.message, true));
+refresh().catch((err) => { note(err.message, true); alignSimulator(); });

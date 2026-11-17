@@ -16,6 +16,18 @@ All notable changes to this project are documented in this file. The format foll
   `INKLAB_NO_UPDATE=1` skips the check, `INKLAB_UPDATE=force` forces it, `INKLAB_NPM_REGISTRY` sets a mirror.
 - `inklab-engine --list` shows the local lanes and where each channel points.
 - An app's `inklab.config.json` may set `runtime` (a channel or lane id) as the project's default engine.
+- Real glasses: push a debug build and open it in one step (`inklab-device push`, the workbench's 推到真机, and push on save, on by default).
+  Installs use the firmware developer interface with the same protocol as `aix install` (prepare, apply, status) under a fixed `develop.rokid.<business>.<id>`, open goes through
+  `content://com.rokid.aiui.develop`, and both are verified from the device: manifest MD5 and the AIUI runtime log.
+- Real touchpad gestures (tap, double tap, long press, forward and back swipes) replayed on the touchpad's input device
+  with the measured timing; the old arrow, confirm and back buttons map to them.
+- Device facts and warnings: model, Ink version, matching simulator lane, touchpad profile, wear detection, accessibility
+  services that intercept keys, developer mode. The side-by-side view runs the simulator on the matching lane and can
+  mirror gestures to it.
+- Live device logs (app console, AIUI runtime events, Ink engine) in the workbench and attached to push results and run reports.
+- Simulator `.mjs` scenarios that only press keys, wait and take screenshots run on the glasses, with a `compare.html`
+  pairing simulator and device screenshots by name.
+- `inklab-device info | push | open | exit | gesture | agents`.
 
 ### Changed
 

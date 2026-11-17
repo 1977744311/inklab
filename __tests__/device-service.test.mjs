@@ -7,6 +7,7 @@ import { createServer, request } from 'node:http';
 import { createHash } from 'node:crypto';
 import { createDeviceService, createDeviceHandler, readDeviceConfig, loadDeviceScenarios, parseAdbDevices, pngMetadata, MAX_DEVICE_RECORDING_BYTES } from '../lib/node/device-service.mjs';
 import { parseDeviceArgs } from '../lib/node/device-e2e.mjs';
+import { nullDeviceLogs } from '../lib/node/device-logs.mjs';
 
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRZkAAAAASUVORK5CYII=', 'base64');
 const vision = { status: async () => ({ available: true }), read: async () => ({ status: 'available', text: '完成3组' }) };
@@ -26,7 +27,7 @@ async function fixture(t, { asrText = true, sleepFn } = {}) {
     return { stdout: JSON.stringify({ dispatched: true, resultVerified: false }) };
   };
   const service = createDeviceService({ appDir, enabled: true, profile: 'test-adapter', asrText,
-    outputDir: join(root, 'output'), execute, vision, sleepFn });
+    outputDir: join(root, 'output'), execute, vision, sleepFn, logStream: nullDeviceLogs() });
   await service.status();
   return { root, appDir, calls, service, execute };
 }
@@ -238,7 +239,7 @@ test('project device config supplies ASR capability and a relocatable control sc
   assert.deepEqual(readDeviceConfig(appDir), {});
   await writeFile(join(appDir, 'inklab.device.json'), JSON.stringify({ profile: 'custom', asrText: true, controlScript: 'adapters/control.mjs' }));
   assert.equal(readDeviceConfig(appDir).asrText, true);
-  const service = createDeviceService({ appDir, enabled: true, execute, vision, outputDir: join(root, 'configured-output') });
+  const service = createDeviceService({ appDir, enabled: true, execute, vision, outputDir: join(root, 'configured-output'), logStream: nullDeviceLogs() });
   t.after(() => service.close());
   const status = await service.status();
   assert.equal(status.profile, 'custom');

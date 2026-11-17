@@ -19,6 +19,8 @@
         <select id="device-select" aria-label="目标眼镜"></select><button id="connect">选择设备</button>
       </div>
       <p id="device-note" role="status" class="notice"></p>
+      <p id="device-facts" class="muted small"></p>
+      <ul id="device-warnings" class="device-warnings"></ul>
       <a class="settings-shortcut" href="#device-settings">真机设置与证据 ↓</a>
     </section>
 
@@ -40,10 +42,10 @@
             <button id="mirror-show" disabled>实时视频</button><button id="evidence-show" disabled>原图证据</button>
             <button id="mirror-record" disabled>录制视频</button><button id="capture">截取原图</button>
           </div>
-          <div class="row stage-keys" role="group" aria-label="眼镜按键">
-            <button data-key="up" aria-label="向上">↑</button><button data-key="down" aria-label="向下">↓</button>
-            <button data-key="left" aria-label="向左">←</button><button data-key="right" aria-label="向右">→</button>
-            <button data-key="enter">确认</button><button data-key="back">返回</button>
+          <div class="row stage-keys" role="group" aria-label="触控板手势">
+            <button data-gesture="backward" title="触控板向后滑（发 LEFT+UP）">向后滑</button><button data-gesture="forward" title="触控板向前滑（发 RIGHT+DOWN）">向前滑</button>
+            <button data-gesture="tap" title="单击（发 ENTER）">单击</button><button data-gesture="double-tap" title="双击（发 BACK）">双击</button>
+            <button data-gesture="long-press" title="长按约 1 秒（发 PROG_BLUE）">长按</button>
           </div>
           <p id="mirror-stats" class="stage-status" role="status">投屏未开启 · 原始截图与视频预览分别保存</p>
         </div>
@@ -67,18 +69,43 @@
             <button data-sim-key="ArrowUp" aria-label="模拟器向上">↑</button><button data-sim-key="ArrowDown" aria-label="模拟器向下">↓</button>
             <button data-sim-key="Enter">确认</button><button data-sim-key="Backspace">返回</button>
           </div>
+          <label class="small"><input type="checkbox" id="sync-gestures"> 真机手势同时发给模拟器（前后滑各发两个方向键，和触控板一样）</label>
           <p id="simulator-note" class="stage-status" role="status">两端加入同一房间。网络开关只影响模拟器。</p>
         </div>
       </section>
     </div>
 
     <aside id="device-settings" class="device-card device-inspector" aria-label="真机设置与证据" tabindex="0">
+      <section class="inspector-section" aria-labelledby="push-heading">
+        <div class="section-heading"><h2 id="push-heading">推到真机</h2><span id="push-state" class="pill">未推送</span></div>
+        <p id="push-agent" class="muted small"></p>
+        <div class="row"><select id="push-page" aria-label="打开哪一页"></select></div>
+        <div class="row"><button id="push" class="primary">推到真机</button><button id="open-agent">只打开</button><button id="exit-agent">退出应用</button></div>
+        <label class="small"><input type="checkbox" id="auto-push"> 保存源码时自动推到真机</label>
+        <p id="push-note" class="muted small" role="status"></p>
+        <details id="agents-section">
+          <summary class="small">眼镜上的调试包</summary>
+          <ul id="agents-list" class="agents-list"></ul>
+          <p class="muted small">只列开发者通道的调试包；手机同步装的智能体在系统私有目录，adb 读不到名字。</p>
+        </details>
+      </section>
+
+      <section class="inspector-section" aria-labelledby="logs-heading">
+        <div class="section-heading"><h2 id="logs-heading">真机日志</h2><button id="logs-clear">清空</button></div>
+        <div class="row small log-filters" role="group" aria-label="日志来源">
+          <label><input type="checkbox" data-log-source="app" checked> 应用</label>
+          <label><input type="checkbox" data-log-source="aiui" checked> 运行时</label>
+          <label><input type="checkbox" data-log-source="ink"> 引擎</label>
+        </div>
+        <ol id="device-logs" class="device-logs"></ol>
+      </section>
+
       <details class="inspector-section">
         <summary>语音调试</summary>
         <label class="small" for="speech">模拟识别文字</label>
         <textarea id="speech" rows="2" placeholder="输入要发送给应用的文字"></textarea>
         <div class="row"><button id="say" class="primary">发送文字并取图</button><button id="wake">真实长按唤醒</button></div>
-        <p class="muted small">文字注入和长按唤醒需要应用适配器。长按会打开眼镜麦克风。</p>
+        <p class="muted small">文字注入需要应用适配器；长按唤醒用真触控板手势（没有触控板档案时才需要适配器）。长按会打开眼镜麦克风。</p>
       </details>
 
       <section class="inspector-section" aria-labelledby="scenario-heading">
@@ -89,6 +116,7 @@
         <div id="steps" aria-live="polite"></div>
         <div class="shots" id="shots"></div>
         <p id="report-location" class="muted small"></p>
+        <a id="compare-link" class="small" hidden target="_blank" rel="noopener">打开「模拟器 vs 真机」截图对照</a>
       </section>
 
       <section class="inspector-section" aria-labelledby="evidence-heading">

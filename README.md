@@ -17,7 +17,7 @@
   Speech simulation supports both legacy recognition and the streaming transport used by 0.18+ engines. Audio-only capture uses an inert local track and mock PCM frames, without requesting microphone access; transcripts still come from injected text. This verifies application behavior, not acoustic recognition quality.
 - **Automated scenarios and screenshot baselines** — declarative JS scripts (key presses, waits, screenshots, assertions) run interactively in the browser or headless in CI. Baselines carry a fingerprint of the source and engine, so outdated baselines are flagged as `stale` instead of silently passing.
 - **Test reports and stage recording** — export `run.json` (source identity, engine hashes, timeline, network log, artifacts) and record the stage canvas as MP4/WebM.
-- **Optional: real glasses over USB** — capture screenshots, stream a live mirror and run read-only scenarios through `adb`. See [docs/device.md](docs/device.md) (Chinese).
+- **Optional: real glasses over USB** — push a debug build to the glasses and open it with one click (or on every save), replay real touchpad gestures, stream a live mirror and the app's logs, align the simulator engine with the glasses' Ink version, and run simulator scenarios on the glasses with a side-by-side screenshot comparison. See [docs/device.md](docs/device.md) (Chinese).
 
 InkLab runs the same rendering engine that Rokid publishes on npm and embeds in the AIUI Studio and Craft web previews, so **it replaces manual clicking in Craft, not final testing on physical glasses**: optics, power draw, real sensor accuracy, microphone acoustics and Bluetooth radio still require real hardware verification.
 
@@ -84,7 +84,8 @@ Your app's tests live in your app's repository; InkLab only provides the host ru
 | `inklab-e2e <app-dir\|pkg.aix> [--scenario id] [--runtime latest\|daily\|<lane>] [--accept] [--headed]` | Run scenarios in headless Chrome, compare screenshot baselines, and write the report to `<app>/e2e/report/last-run.json`. `--accept` saves this run's screenshots as new baselines. |
 | `inklab-matrix <app-dir\|pkg.aix> [--scenario id] [--runtime a,b] [--all-lighting]` | Run one scenario across multiple runtime lanes (and ambient lighting backgrounds) and summarise differences. |
 | `inklab-engine [<lane>…] [--check\|--discover\|--list]` | Check npm (`@yodaos-pkg/ink`, tags `latest` and `daily`), AIUI Studio and Craft for engine builds, append new lanes to `runtimes.lock.json`, and download missing files into `.engine/`. `--check` verifies local files offline; `--discover` previews new builds without writing (exits with 2 if found); `--list` shows the lanes and where each channel points (`--list --json` for scripts). |
-| `inklab-device <app-dir> --serial SN --scenario ID` | Run a scenario on real glasses over USB (optional). |
+| `inklab-device info\|push <app>\|open\|exit\|gesture <name>\|agents` | Real glasses over USB (optional): show the device and its Ink version, push and open a debug build, replay touchpad gestures, list debug agents. |
+| `inklab-device <app-dir> --serial SN --scenario ID` | Run a device scenario or a simulator `.mjs` scenario on real glasses; simulator scenarios also get a side-by-side `compare.html`. |
 | `npm run install-cli [-- --uninstall]` | Install or remove the commands above (see Quick start). Every command accepts `--help` and `--version`. |
 | `npm test` · `npm run lint` | Unit test suite (needs no external network or browser) · ESLint (`npm ci` first; devDependencies are for linting only). |
 
@@ -129,7 +130,7 @@ See [the guide](docs/guide.md#引擎版本会漂) for discovery rules and how to
 The long-form documents are in Chinese for now; issues and pull requests in English or Chinese are both welcome.
 
 - [Guide](docs/guide.md) — workbench, host capabilities, scenarios, e2e, LLM modes, screenshot baselines.
-- [Real glasses over USB](docs/device.md) — live mirror, device scenarios, app-provided control scripts.
+- [Real glasses over USB](docs/device.md) — push and open debug builds, touchpad gestures, live mirror and logs, device scenarios, app-provided control scripts.
 - [Runtime field notes](docs/runtime-notes.md) — measured engine behaviour and timing rules; read before scripting an app.
 
 ## Security
