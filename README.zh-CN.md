@@ -27,7 +27,7 @@ InkLab 用的是 Rokid 在 npm 上发布、并嵌在 AIUI Studio 与 Craft 网�
 需要 Node.js 22 或更高版本，以及 Chrome 浏览器。无需 `npm install` 安装任何运行时依赖。
 
 ```bash
-git clone --branch v0.2.0 --depth 1 https://github.com/1977744311/inklab.git
+git clone --branch v0.3.0 --depth 1 https://github.com/1977744311/inklab.git
 cd inklab
 npm run install-cli                         # 把 inklab、inklab-e2e 等命令软链到 ~/.local/bin
 inklab-engine                               # 首次运行：从 npm、AIUI Studio 和 Craft 获取最新引擎并缓存到本地
@@ -44,7 +44,7 @@ inklab fixtures/cap-probe-app --open
 - 写自动化测试：[写场景](docs/guide.md#写场景)、[跑自动化测试](docs/guide.md#跑自动化测试)。
 - 连真眼镜：[USB 连真机](docs/device.md)。
 
-以上命令使用 v0.2.0。参与 InkLab 开发时请使用 `main`。[发布说明](https://github.com/1977744311/inklab/releases/tag/v0.2.0) · [贡献指南](CONTRIBUTING.md)
+以上命令使用 v0.3.0。参与 InkLab 开发时请使用 `main`。[发布说明](https://github.com/1977744311/inklab/releases/tag/v0.3.0) · [贡献指南](CONTRIBUTING.md)
 
 ## 核心概念
 

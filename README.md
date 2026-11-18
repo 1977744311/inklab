@@ -27,7 +27,7 @@ InkLab runs the same rendering engine that Rokid publishes on npm and embeds in 
 You need Node.js 22 or later and Chrome. There are no npm runtime dependencies to install.
 
 ```bash
-git clone --branch v0.2.0 --depth 1 https://github.com/1977744311/inklab.git
+git clone --branch v0.3.0 --depth 1 https://github.com/1977744311/inklab.git
 cd inklab
 npm run install-cli                         # symlink inklab, inklab-e2e and friends into ~/.local/bin
 inklab-engine                               # first run: downloads the latest engines from npm, AIUI Studio and Craft
@@ -44,7 +44,7 @@ The header switches between three modes: **模拟器** (simulator), **USB 真机
 - Automated tests: [writing scenarios](docs/guide.md#写场景) and [running them](docs/guide.md#跑自动化测试).
 - Real glasses: [USB setup](docs/device.md).
 
-This quick start uses v0.2.0. For InkLab development, use `main`. [Release notes](https://github.com/1977744311/inklab/releases/tag/v0.2.0) · [Contributing](CONTRIBUTING.md)
+This quick start uses v0.3.0. For InkLab development, use `main`. [Release notes](https://github.com/1977744311/inklab/releases/tag/v0.3.0) · [Contributing](CONTRIBUTING.md)
 
 > The workbench UI and the long-form guides are in Chinese for now.
 
