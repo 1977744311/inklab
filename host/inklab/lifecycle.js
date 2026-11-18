@@ -208,14 +208,14 @@ export function connectWatch() {
   const badge = $('watch-state');
   const owner = window.parent !== window ? window.parent : window.opener;
   if (owner?.__inklab?.players?.length > 1) {
-    badge.textContent = 'watch 由网格共享';
+    badge.textContent = '网格共享';
     return;
   }
   let es;
-  try { es = new EventSource('/api/watch'); } catch { badge.textContent = 'watch 起不来'; return; }
+  try { es = new EventSource('/api/watch'); } catch { badge.textContent = '监听不可用'; badge.className = 'pill warn'; return; }
   es.addEventListener('hello', (ev) => {
     const d = JSON.parse(ev.data || '{}');
-    badge.textContent = d.watching ? 'watch 已连' : 'watch 不可用';
+    badge.textContent = d.watching ? '监听中' : '监听不可用';
     badge.className = `pill ${d.watching ? 'ok' : 'warn'}`;
   });
   es.addEventListener('change', (ev) => {
@@ -226,7 +226,7 @@ export function connectWatch() {
     boot(`<span class="acc">热重载</span> ${esc(what)}`, 'ok');
     start();
   });
-  es.onerror = () => { badge.textContent = 'watch 断了'; badge.className = 'pill err'; };
+  es.onerror = () => { badge.textContent = '监听断开'; badge.className = 'pill err'; };
 }
 
 /** 正在进行中的装载（Promise），没有则为 null。控制台按钮据此避免在装载中途操作。 */

@@ -35,7 +35,7 @@ inklab fixtures/cap-probe-app --open
 
 `install-cli` symlinks the commands into `~/.local/bin` (`--bin-dir` picks another directory), independent of the Node version fnm or nvm currently selects. The links point at this clone, so `git pull` updates the commands, and the engine cache stays in this clone's `.engine/`. After that, run `inklab <app-dir>` or `inklab-e2e <app-dir>` from any project. `npm run install-cli -- --uninstall` removes them. Inside this repository the `npm start --` / `npm run e2e --` forms keep working.
 
-The workbench opens at <http://127.0.0.1:8788/>. `fixtures/cap-probe-app` is a built-in probe app so you can try every feature right away; when you have your own app, pass its source directory or `.aix` file instead. To compare two engine versions side by side, tick two lanes in the workbench or open `?runtimes=<id>,<id>` (lane ids are listed by `inklab-engine --list`; channel names such as `latest` and `daily` work too).
+The workbench opens at <http://127.0.0.1:8788/>. `fixtures/cap-probe-app` is a built-in probe app so you can try every feature right away; when you have your own app, pass its source directory or `.aix` file instead. To compare two engine versions side by side, tick two lanes in the **引擎** (engine) menu at the top left of the preview, or open `?runtimes=<id>,<id>` (lane ids are listed by `inklab-engine --list`; channel names such as `latest` and `daily` work too).
 
 This quick start uses v0.2.0. For InkLab development, use `main`. [Release notes](https://github.com/1977744311/inklab/releases/tag/v0.2.0) · [Contributing](CONTRIBUTING.md)
 
@@ -60,7 +60,7 @@ Pop out transfers a seat to another window; closing it restores the tile. Multip
 Tiles show WS status and download progress. Clear one/all players' OPFS and reload to retest downloads; this also removes other files the app stores in OPFS, while preserving localStorage device identity.
 Scenario `build({ players })` receives `players[i].press(key)`, `.shot(name)` and `.caps`; see the [guide](docs/guide.md#多玩家场景).
 
-The header switches between **模拟器** (simulator), **USB 真机** (USB glasses), and **真机 + 模拟器** (side by side). Switching to **USB 真机** turns on device control (a plain start never calls ADB) and picks the glasses automatically when only one pair is connected; `--device` turns it on from the start. On desktop, the side-by-side view fits both previews at the same size beside the device controls. Join the same app room on both sides and use the simulator's offline and online controls to exercise reconnects. See [USB setup](docs/device.md).
+The header switches between **模拟器** (simulator), **USB 真机** (USB glasses), and **真机 + 模拟器** (side by side). Switching to **USB 真机** turns on device control (a plain start never calls ADB) and picks the glasses automatically when only one pair is connected; `--device` turns it on from the start. On desktop, the side-by-side view fits both previews at the same size beside the device controls. All pages share the header's light/dark theme toggle. Join the same app room on both sides and use the simulator's offline and online controls to exercise reconnects. See [USB setup](docs/device.md).
 
 ## Core concepts
 

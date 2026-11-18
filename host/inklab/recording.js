@@ -40,6 +40,7 @@ export function refreshRecordingState() {
   const canStart = stageRecorder.supported() && typeof stage?.canvas?.captureStream === 'function';
   button.disabled = !canStart && !active;
   $('scenario-record').disabled = !canStart || Boolean(active);
+  button.classList.toggle('is-recording', Boolean(active));
   if (active) {
     const elapsed = Date.now() - active.startedAt;
     button.textContent = '停止录制';

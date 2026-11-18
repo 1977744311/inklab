@@ -35,7 +35,7 @@ inklab fixtures/cap-probe-app --open
 
 `install-cli` 把命令软链到 `~/.local/bin`（`--bin-dir` 可换目录），跟 fnm / nvm 当前选的 Node 版本无关；链接指向这份 clone，`git pull` 之后命令就是新版，引擎缓存也仍在这份 clone 的 `.engine/` 里。之后在任何项目目录里都可以直接用 `inklab <应用目录>`、`inklab-e2e <应用目录>`。`npm run install-cli -- --uninstall` 卸载。不想装命令时，在本仓库里照旧用 `npm start --`、`npm run e2e --` 等写法。
 
-浏览器会自动打开 <http://127.0.0.1:8788/>。`fixtures/cap-probe-app` 是仓库自带的示例探针应用，方便你直接体验所有功能；调试自己的应用时，把路径换成你的源码目录或 `.aix` 文件即可。想并排对比两个引擎版本，只需在页面顶部勾选两个版本，或在 URL 后加上 `?runtimes=<id>,<id>`（版本 id 用 `inklab-engine --list` 查看；也可以写通道名 `latest`、`daily`）。
+浏览器会自动打开 <http://127.0.0.1:8788/>。`fixtures/cap-probe-app` 是仓库自带的示例探针应用，方便你直接体验所有功能；调试自己的应用时，把路径换成你的源码目录或 `.aix` 文件即可。想并排对比两个引擎版本，只需在预览左上角的「引擎」下拉面板里勾选两个版本，或在 URL 后加上 `?runtimes=<id>,<id>`（版本 id 用 `inklab-engine --list` 查看；也可以写通道名 `latest`、`daily`）。
 
 以上命令使用 v0.2.0。参与 InkLab 开发时请使用 `main`。[发布说明](https://github.com/1977744311/inklab/releases/tag/v0.2.0) · [贡献指南](CONTRIBUTING.md)
 
@@ -55,7 +55,7 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 多玩家使用 1 倍画布、约 20fps。每格显示 WS 状态和下载进度；可清当前或全部玩家的 OPFS 并重载（也会清掉应用写在 OPFS 内的其他文件，保留 localStorage 设备身份）。
 自动化场景的 `build({ players })` 可调用 `players[0].press('Enter')`、`players[1].shot('lobby')`、`players[i].caps.net.offline()`；详见[指南](docs/guide.md#多玩家场景)。
 
-顶部模式栏可在「模拟器」「USB 真机」「真机 + 模拟器」之间切换。切到「USB 真机」就启用真机（普通启动不碰 ADB），只连着一副眼镜时自动选上；`--device` 让它一启动就启用。桌面端并排显示同尺寸预览和真机设置。联调时让两端进同一个应用房间，用模拟器的断网、恢复联网按钮复测重连。连接方法见 [USB 真机](docs/device.md)。
+顶部模式栏可在「模拟器」「USB 真机」「真机 + 模拟器」之间切换。切到「USB 真机」就启用真机（普通启动不碰 ADB），只连着一副眼镜时自动选上；`--device` 让它一启动就启用。桌面端并排显示同尺寸预览和真机设置。各页共用顶栏的浅色/暗色切换。联调时让两端进同一个应用房间，用模拟器的断网、恢复联网按钮复测重连。连接方法见 [USB 真机](docs/device.md)。
 
 ## 核心概念
 

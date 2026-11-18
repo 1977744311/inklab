@@ -1,43 +1,53 @@
-:root { --workbench-header-height: 54px; }
+/* workbench-modes.css — 顶栏与「模拟器 / USB 真机 / 真机 + 模拟器」模式切换。
+   颜色取 theme.css 的令牌；没加载 theme.css 的页面（多玩家网格）走后备色。 */
+
+:root { --workbench-header-height: 52px; }
 
 .workbench-header {
-  --mode-border: var(--line, var(--border, #29363b));
-  --mode-accent: var(--accent, var(--green, #74e6a3));
-  --mode-surface: var(--surface, #11181b);
+  --mode-border: var(--line, #29363b);
+  --mode-accent: var(--accent, #74e6a3);
+  --mode-surface: var(--surface-2, #11181b);
+  --mode-fg: var(--fg, #edf3f4);
+  --mode-dim: var(--dim, #8a9ba1);
+  position: relative;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 14px;
   min-height: var(--workbench-header-height);
-  padding: 4px 14px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--mode-border);
+  background: var(--surface, transparent);
 }
 
 .workbench-brand {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 9px;
-  color: var(--fg, #edf3f4);
-  font: 700 15px/1.2 "Avenir Next", "PingFang SC", sans-serif;
-  letter-spacing: .06em;
+  gap: 8px;
+  color: var(--mode-fg);
+  font: 700 15px/1 var(--font, system-ui, -apple-system, "PingFang SC", sans-serif);
+  letter-spacing: .02em;
   text-decoration: none;
 }
 
 .workbench-brand-mark {
   display: grid;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   place-items: center;
-  border: 1px solid var(--mode-accent);
-  border-radius: 8px;
-  color: var(--mode-accent);
-  font: 700 10px/1 "SFMono-Regular", monospace;
+  border-radius: 7px;
+  background: var(--mode-accent);
+  color: var(--accent-fg, #062014);
+  font: 800 10.5px/1 var(--mono, ui-monospace, Menlo, monospace);
+  letter-spacing: .02em;
 }
 
 .workbench-modes {
   display: flex;
   flex: none;
-  gap: 3px;
-  padding: 3px;
+  gap: 2px;
+  padding: 2px;
   border: 1px solid var(--mode-border);
   border-radius: 9px;
   background: var(--mode-surface);
@@ -50,56 +60,46 @@
   flex: 1 1 auto;
   align-items: center;
   justify-content: center;
-  min-height: 30px;
-  padding: 0 11px;
+  min-height: 28px;
+  padding: 0 12px;
   border: 1px solid transparent;
-  border-radius: 6px;
-  color: var(--fg, #edf3f4);
-  font: 650 13px/1.2 "Avenir Next", "PingFang SC", sans-serif;
-  letter-spacing: .01em;
+  border-radius: 7px;
+  color: var(--mode-dim);
+  font: 600 13px/1.2 var(--font, system-ui, -apple-system, "PingFang SC", sans-serif);
   text-decoration: none;
   white-space: nowrap;
 }
 
-.workbench-modes a:hover {
-  background: color-mix(in srgb, var(--mode-accent) 9%, var(--mode-surface));
-}
+.workbench-modes a:hover { color: var(--mode-fg); background: var(--surface-3, rgba(255, 255, 255, .06)); }
 
 .workbench-modes a[aria-current="page"] {
-  border-color: color-mix(in srgb, var(--mode-accent) 50%, var(--mode-border));
-  background: color-mix(in srgb, var(--mode-accent) 14%, var(--mode-surface));
-  color: var(--mode-accent);
+  border-color: var(--mode-border);
+  background: var(--surface, #172125);
+  color: var(--mode-fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .08);
 }
 
 .workbench-modes a:focus-visible {
-  outline: 2px solid var(--mode-accent);
+  outline: 2px solid var(--focus, var(--mode-accent));
   outline-offset: 1px;
 }
 
-@media (max-height: 850px) {
-  :root { --workbench-header-height: 48px; }
-  .workbench-header { padding-inline: 10px; }
-}
-
 @media (max-width: 760px) {
-  :root:has(.workbench-modes:not([hidden])) { --workbench-header-height: 90px; }
+  :root:has(.workbench-modes:not([hidden])) { --workbench-header-height: 92px; }
 
   .workbench-header {
     flex-wrap: wrap;
     align-content: center;
-    gap: 4px 12px;
+    gap: 6px 10px;
     padding: 6px 10px;
   }
 
-  .workbench-brand { min-height: 30px; }
+  .workbench-brand { min-height: 32px; }
 
   .workbench-modes {
     flex: 1 0 100%;
     order: 1;
   }
 
-  .workbench-modes a {
-    min-height: 32px;
-    padding-inline: 8px;
-  }
+  .workbench-modes a { min-height: 30px; padding-inline: 6px; }
 }

@@ -45,15 +45,28 @@ export function renderRuntimePicker(info) {
     const version = runtimeDisplayVersion(runtime);
     const checked = runtime.available && initial.includes(runtime.id) ? ' checked' : '';
     const disabled = runtime.available ? '' : ' disabled';
-    return `<label class="runtime-pick${runtime.available ? '' : ' unavailable'}" title="${esc(runtime.source || '')}">`
+    return `<label class="runtime-pick${runtime.available ? '' : ' unavailable'}" title="${esc(runtime.source || '')}"`
+      + ` data-label="${esc(runtime.label)}">`
       + `<input type="checkbox" value="${esc(runtime.id)}"${checked}${disabled}>`
-      + `${esc(runtime.label)} <span class="stage-version">${esc(version)}</span></label>`;
+      + `<span class="runtime-name">${esc(runtime.label)}</span> <span class="stage-version">${esc(version)}</span></label>`;
   }).join('');
   host.dataset.signature = signature;
   if (!host.querySelector('input:checked')) {
     const fallback = host.querySelector('input:not(:disabled)');
     if (fallback) fallback.checked = true;
   }
+  refreshRuntimeSummary();
+}
+
+/** 引擎下拉框收起时显示的摘要：只选一个就写它的名字，多个写「N 个并排」。 */
+export function refreshRuntimeSummary() {
+  const summary = $('runtime-summary');
+  if (!summary) return;
+  const checked = [...$('runtime-picks').querySelectorAll('input:checked')]
+    .map((input) => input.closest('.runtime-pick')?.dataset.label || input.value);
+  summary.textContent = checked.length > 1 ? `${checked.length} 个并排 · ${checked.join(' / ')}`
+    : checked[0] || '未选择';
+  summary.title = checked.join('\n');
 }
 
 export function selectedRuntimeRows(info) {
@@ -69,15 +82,18 @@ export function selectedRuntimeRows(info) {
 export function renderStageShells(runtimes) {
   const light = normalizeLightingProfile(state.lighting);
   const preview = normalizePreviewMode(state.previewMode);
+  const multi = runtimes.length > 1;
   $('stages').innerHTML = runtimes.map((runtime, index) => (
     `<section class="stage" data-runtime="${esc(runtime.id)}">`
-      + `<div class="stage-head"><span class="stage-title">${index === 0 ? '主 lane' : `lane ${index + 1}`} · ${esc(runtime.label)}</span>`
+      + `<div class="stage-head"><span class="stage-title">`
+      + `${multi ? `<span class="tag" title="${index === 0 ? '主舞台：场景、截图和录屏的权威画面' : '独立 WASM / appId'}">${index === 0 ? '主' : index + 1}</span>` : ''}`
+      + `${esc(runtime.label)}</span>`
       + `<span class="stage-version">${esc(runtimeDisplayVersion(runtime))}</span></div>`
       + `<div class="optical-stage preview-${preview} light-${light}" data-optical-runtime="${esc(runtime.id)}">`
       + `<canvas data-runtime-canvas="${esc(runtime.id)}" width="480" height="352" tabindex="${index === 0 ? '0' : '-1'}"></canvas>`
       + `<canvas class="preview-composite" aria-hidden="true"></canvas></div>`
       + `<div class="stage-meta"><span data-runtime-status="${esc(runtime.id)}">等待启动</span>`
-      + `${index === 0 ? ' · <kbd>↑</kbd><kbd>↓</kbd> 焦点 · <kbd>Enter</kbd> 执行 · <kbd>Backspace</kbd> 返回' : ' · 独立 WASM / appId'}</div>`
+      + `${index === 0 ? '<span class="keys"><kbd>↑</kbd><kbd>↓</kbd> 焦点 <kbd>Enter</kbd> 执行 <kbd>Backspace</kbd> 返回</span>' : ''}</div>`
       + '</section>'
   )).join('');
 }

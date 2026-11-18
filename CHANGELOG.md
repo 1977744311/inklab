@@ -61,6 +61,11 @@ All notable changes to this project are documented in this file. The format foll
   The workbench's 退出应用 button is now 关掉助手.
 - Sensor trace playback and the still baseline are scheduled on absolute times: late timers no longer accumulate,
   so a 60 Hz trace plays at 60 Hz instead of about 52 Hz in the browser.
+- The workbench UI was redesigned for everyday use. The simulator, USB glasses and side-by-side pages share one stylesheet
+  (`host/theme.css`) with a light/dark theme and no horizontal overflow on narrow screens. Engines are picked from an
+  **引擎** menu above the preview, the scenario bar sits under the preview, and long help text moved into one-line hints
+  and tooltips. The USB glasses page keeps evidence under the preview, scrolls as one page with the preview pinned, and
+  folds the sidebar into collapsible sections that remember their state. Element ids and `window.__inklab` are unchanged.
 - The default lane is the `latest` channel among cached lanes instead of the first entry in `runtimes.lock.json`.
 - An unknown `--runtime` now lists the available lanes and the channel names.
 

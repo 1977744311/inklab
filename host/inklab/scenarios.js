@@ -33,6 +33,7 @@ export function renderScenarioPicker() {
 export function showScenarioDesc() {
   const s = findScenario($('scenario-pick').value);
   $('scenario-desc').textContent = s ? s.summary : '';
+  $('scenario-desc').title = s ? s.summary : '';
 }
 
 export async function runScenario(id = $('scenario-pick').value, options = {}) {

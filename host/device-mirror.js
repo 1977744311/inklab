@@ -59,7 +59,7 @@ export function createMirrorView({ api, onState = () => {}, onNote = () => {}, h
       ? ((times.length - 1) * 1000 / (times[times.length - 1] - times[0])).toFixed(1) : '0.0';
     $('mirror-stats').textContent = active
       ? `H.264 连续视频 · 实收 ${fps} fps · 最近绘制 ${lastPaintedAt ? now - lastPaintedAt : '—'} ms前${paintMs == null ? '' : ` · 解码→显示 ${paintMs} ms`}${server.status === 'restarting' ? ' · 正在续接' : ''}`
-      : server.error ? `投屏已停止：${server.error}` : '投屏未开启 · 原始截图与视频预览分别保存';
+      : server.error ? `投屏已停止：${server.error}` : '投屏未开启';
   }
   function show(which) {
     mode = which;
@@ -77,6 +77,7 @@ export function createMirrorView({ api, onState = () => {}, onNote = () => {}, h
     $('evidence-show').disabled = !hasEvidence();
     $('mirror-record').disabled = recordingStopping || (!recording && (!active || !lastPaintedAt));
     $('mirror-record').textContent = recording ? '停止录制' : '录制视频';
+    $('mirror-record').classList.toggle('is-recording', recording);
     onState({ active, starting });
   }
   async function paint() {

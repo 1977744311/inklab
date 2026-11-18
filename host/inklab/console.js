@@ -28,7 +28,7 @@ import {
   refreshRecordingState, stageRecorder, startStageRecording, stopRecordingTicker, stopStageRecording,
 } from '/host/inklab/recording.js';
 import { netGuardEnabled } from '/host/inklab/project.js';
-import { applyLightingProfile, applyPreviewMode } from '/host/inklab/stage.js';
+import { applyLightingProfile, applyPreviewMode, refreshRuntimeSummary } from '/host/inklab/stage.js';
 import { isStarting, start } from '/host/inklab/lifecycle.js';
 import { runScenario, showScenarioDesc } from '/host/inklab/scenarios.js';
 
@@ -92,6 +92,7 @@ export function wireConsole() {
       return;
     }
     const ids = checked.map((input) => input.value);
+    refreshRuntimeSummary();
     const url = new URL(location.href);
     url.searchParams.set('runtimes', ids.join(','));
     history.replaceState(null, '', url);
@@ -100,6 +101,14 @@ export function wireConsole() {
     if (inflight) await inflight;
     await start();
   };
+  // 引擎下拉面板：点外面或按 Esc 收起。
+  const runtimeMenu = $('runtime-menu');
+  document.addEventListener('pointerdown', (ev) => {
+    if (runtimeMenu.open && !runtimeMenu.contains(ev.target)) runtimeMenu.open = false;
+  });
+  document.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Escape' && runtimeMenu.open) runtimeMenu.open = false;
+  }, true);
   $('preview-mode').onchange = () => applyPreviewMode($('preview-mode').value);
   $('lighting-profile').onchange = () => applyLightingProfile($('lighting-profile').value);
   $('mirror').onchange = () => {
@@ -512,8 +521,10 @@ export function wireConsole() {
   });
 
   // 点完按钮把焦点还回去：否则按钮留着 DOM 焦点，Enter/空格会去按按钮而不是驱动应用。
+  // 折叠区的 summary 同理（Enter/空格会把它再收起来）。
   document.addEventListener('click', (ev) => {
-    if (ev.target instanceof HTMLButtonElement) ev.target.blur();
+    const target = ev.target instanceof Element ? ev.target.closest('button, summary') : null;
+    if (target instanceof HTMLElement) target.blur();
   });
 
   setInterval(refreshCapState, 1000);

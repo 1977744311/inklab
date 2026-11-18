@@ -1,5 +1,6 @@
 import { createMirrorView } from '/host/device-mirror.js';
 import { playerUrl } from '/host/lib/multiplayer.mjs';
+import { nextUiTheme, normalizeUiTheme } from '/host/lib/ui-preferences.mjs';
 const $ = (id) => document.getElementById(id);
 const state = { target: 'real-glasses', ready: false, status: null, scenarios: [], lastScenario: null,
   token: '', busy: false, runId: null, screen: null };
@@ -54,9 +55,9 @@ async function refresh() {
   $('connection').classList.toggle('connected', connected);
   if (state.status.error) note(state.status.error, true);
   else if (state.status.deviceError) note(state.status.deviceError, true);
-  else note(connected ? '眼镜已连接。点「推到真机」装上调试包并打开，或在眼镜里手动打开应用。'
-    : state.status.devices.some((d) => d.state === 'device') ? '连着几副眼镜：选一副，点「连接」。'
-      : '没找到眼镜：用 USB 连上并在眼镜上允许调试，或先 inklab-device wifi 打开无线调试。连上后几秒内自动选上。');
+  else note(connected ? ''
+    : state.status.devices.some((d) => d.state === 'device') ? '连着几副眼镜：选一副，点「选用」。'
+      : '没找到眼镜：USB 连上并在眼镜上允许调试，或运行 inklab-device wifi；连上后自动选中。');
   renderDevice();
   renderPush();
   renderImu().catch(() => {});
@@ -75,9 +76,9 @@ async function refresh() {
   renderScenario();
   $('coverage').replaceChildren();
   const item = (text) => { const el = document.createElement('div'); el.className = 'coverage-item'; el.textContent = text; $('coverage').append(el); };
-  item(`真实按键 / 原始截图：支持；识别文字：${state.status.capabilities.asrText ? '应用调试包' : '不支持'}；OCR：${state.status.ocr.available ? '本机 Vision' : state.status.ocr.reason || '不可用'}`);
+  item(`真实按键、原始截图：支持 · 识别文字：${state.status.capabilities.asrText ? '应用调试包' : '不支持'} · OCR：${state.status.ocr.available ? '本机 Vision' : state.status.ocr.reason || '不可用'}`);
   item('不能自动验证麦克风识音、TTS 完播；不能注入 mock caps、存储种子、传感器或模型录带。');
-  item('模拟器的 .mjs 场景也会列出来：只用按键、等待、截图的可以直接在真机上跑（方向键按触控板手势做），跑完生成和模拟器同名截图的对照页；用到 do / expect 或模拟硬件的标为不支持。');
+  item('模拟器 .mjs 场景只用按键、等待、截图的能直接在真机跑，并生成同名截图对照页；用到 do / expect 或模拟硬件的标为不支持。');
   const latest = state.status.recentRuns?.find((r) => r.status !== 'running');
   if (latest && !state.lastScenario && !state.busy) {
     const run = await api(`run/${latest.id}`);
@@ -131,7 +132,7 @@ function renderPush() {
       : push.status === 'done' || push.status === 'queued'
         ? [`${push.trigger === 'save' ? '保存后自动推送' : '推送'}完成 ${seconds}`, push.installed?.outcome, reclaimLabel(push.reclaimed),
           push.opened?.note || push.note].filter(Boolean).join(' · ')
-        : push.pending ? '源码有改动，等手头的操作结束后推送' : '本机调试安装：打包 → 装上调试包 → 关掉助手回收旧实例 → 打开 → 截图，不经过手机和 Studio。';
+        : push.pending ? '源码有改动，等手头的操作结束后推送' : '';
   $('push-note').classList?.toggle('error', push.status === 'failed');
   if (push.screenshot && push.screenshot.id !== state.pushShot) {
     state.pushShot = push.screenshot.id;
@@ -147,7 +148,7 @@ function alignSimulator() {
   if (lane && !url.searchParams.has('runtimes')) url.searchParams.set('runtimes', lane);
   frame.src = playerUrl(url.href, 0, 1, { embedded: true });
   simulatorAligned = true;
-  if (lane) $('simulator-note').textContent = `模拟器引擎 ${lane}，对齐眼镜上的 Ink ${state.status.device?.ink?.version}。两端加入同一房间。网络开关只影响模拟器。`;
+  if (lane) $('simulator-note').textContent = `引擎 ${lane}，对齐眼镜上的 Ink ${state.status.device?.ink?.version}。网络开关只影响模拟器。`;
 }
 function selectedScenario() { return state.scenarios.find((s) => s.id === $('scenario-select').value); }
 function renderScenario() {
@@ -166,7 +167,7 @@ async function command(args, { capture = true } = {}) {
   return act(async () => {
     const receipt = await api('command', args);
     if (capture) displayShot(await api('capture', { name: `manual-${args.command}`, ocr: true }));
-    note('输入已发送；请核对真实画面，发送成功不等于业务通过。');
+    note('已发送；请核对真实画面，发送成功不等于业务通过。');
     return receipt;
   });
 }
@@ -184,6 +185,14 @@ function renderEvents(run, scene) {
     if (event?.reason) { const reason = document.createElement('small'); reason.textContent = event.reason; row.append(reason); }
     return row;
   }));
+  // 步骤列表限高：运行中跟到当前步，失败时停在第一个失败步（只滚列表自己，不动页面）。
+  const list = $('steps');
+  const focus = list.querySelector('.step.failed, .step.active')
+    || (run.status === 'running' ? [...list.querySelectorAll('.step:not(.pending)')].pop() : null);
+  if (focus) {
+    const offset = focus.getBoundingClientRect().top - list.getBoundingClientRect().top + list.scrollTop;
+    list.scrollTop = Math.max(0, offset - (list.clientHeight - focus.offsetHeight) / 2);
+  }
   const shots = run.events.filter((e) => e.phase === 'end' && e.screenshot).map((e) => e.screenshot);
   $('shots').replaceChildren(...shots.map((shot) => {
     const img = document.createElement('img'); img.src = shot.url; img.alt = shot.name; img.title = shot.name;
@@ -397,4 +406,28 @@ if (new URLSearchParams(location.search).get('simulator') === '1') {
   $('simulator-offline').onclick = controlSimulator(lab => { lab.caps.net.offline(); return '模拟器网络已断开'; });
   $('simulator-online').onclick = controlSimulator(lab => { lab.caps.net.online(); return '模拟器网络已恢复'; });
 }
+// ── 界面偏好：主题与模拟器页共用 inklab.theme；侧栏各区的开合记在本机 ──
+function applyTheme(theme, { persist = true } = {}) {
+  const value = normalizeUiTheme(theme);
+  document.documentElement.dataset.theme = value;
+  const next = nextUiTheme(value);
+  const button = $('theme-toggle');
+  button.innerHTML = `<i class="ico ${next === 'light' ? 'i-sun' : 'i-moon'}"></i>`;
+  button.title = `切换到${next === 'light' ? '浅色' : '暗色'}界面`;
+  button.setAttribute('aria-label', button.title);
+  if (persist) { try { localStorage.setItem('inklab.theme', value); } catch { /* 禁用存储时本轮仍可用 */ } }
+}
+applyTheme(document.documentElement.dataset.theme, { persist: false });
+$('theme-toggle').onclick = () => applyTheme(nextUiTheme(document.documentElement.dataset.theme));
+const SECTIONS_KEY = 'inklab.device.sections';
+const savedSections = (() => { try { return JSON.parse(localStorage.getItem(SECTIONS_KEY) || '{}'); } catch { return {}; } })();
+for (const section of document.querySelectorAll('details[data-section]')) {
+  const id = section.dataset.section;
+  if (typeof savedSections[id] === 'boolean') section.open = savedSections[id];
+  section.addEventListener('toggle', () => {
+    savedSections[id] = section.open;
+    try { localStorage.setItem(SECTIONS_KEY, JSON.stringify(savedSections)); } catch { /* 同上 */ }
+  });
+}
+
 refresh().catch((err) => { note(err.message, true); alignSimulator(); });

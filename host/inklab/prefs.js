@@ -24,7 +24,7 @@ export function applyUiTheme(value, { persist = true } = {}) {
   const next = nextUiTheme(theme);
   const button = $('theme-toggle');
   if (button) {
-    button.innerHTML = `${theme === 'dark' ? '☀' : '◐'}<span class="button-label">${next === 'light' ? '浅色' : '暗色'}</span>`;
+    button.innerHTML = `<i class="ico ${next === 'light' ? 'i-sun' : 'i-moon'}"></i>`;
     button.title = `切换到${next === 'light' ? '浅色' : '暗色'}界面`;
     button.setAttribute('aria-label', button.title);
   }
@@ -71,8 +71,9 @@ export function applyInspectorCollapsed(value, { persist = true } = {}) {
   if (button) {
     button.classList.toggle('on', !collapsed);
     button.setAttribute('aria-expanded', String(!collapsed));
-    button.innerHTML = `${collapsed ? '◨' : '◧'}<span class="button-label">Inspector</span>`;
+    button.innerHTML = '<i class="ico i-panel"></i>';
     button.title = collapsed ? '展开 Inspector' : '收起 Inspector';
+    button.setAttribute('aria-label', button.title);
   }
   if (persist) writeUiPref(UI_PREF_KEYS.inspector, collapsed ? '1' : '0');
   return collapsed;
