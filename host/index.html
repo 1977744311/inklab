@@ -416,12 +416,20 @@
           <span id="sensor-trace-state" class="pill">baseline</span>
         </div>
         <div class="bar">
+          <select id="sensor-lib-pick" title="工程 e2e/traces/ 里的 IMU 轨迹（真机录的或合成的）"><option value="">工程轨迹（无）</option></select>
+          <select id="sensor-lib-segment" title="轨迹里的段落"><option value="">整条</option></select>
+          <button id="sensor-lib-play" title="立刻切给正在跑的传感器会话；轨迹里有几个传感器就同时放几个">播放轨迹</button>
+          <span id="sensor-profile" class="pill" title="传感器档案（inklab.config.json 的 sensorProfile）">generic</span>
+        </div>
+        <div class="bar">
           <button id="sensor-inject">立刻故障</button>
           <button id="sensor-inject-after">发 20 条后故障</button>
           <button id="sensor-clear">清除故障</button>
           <button id="sensor-state">看活动会话</button>
         </div>
-        <div class="hint">trace 在下一次传感器 start 时生效；JSON 可直接写样本数组，或写
+        <div class="hint">工程轨迹放在 <code>e2e/traces/</code>，真机上用「模拟 IMU · 录制」录下来的就存在这里；
+          场景里用 <code>await lab.imu.play('名字#段落')</code> 放同一批文件。
+          trace 在下一次传感器 start 时生效；JSON 可直接写样本数组，或写
           <code>{sensor, speed, samples}</code>。深蹲示例只验证流程/算法，不冒充真机信号。
           腕表 IMU 仍走上方模拟蓝牙的 <code>playNotificationTrace</code>。故障是粘的，需手动清除。</div>
       </div>

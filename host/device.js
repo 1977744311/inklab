@@ -17,7 +17,7 @@ async function api(path, body) {
 function note(text, error = false) { $('device-note').textContent = text; $('device-note').classList.toggle('error', error); }
 function controls() {
   const connected = state.status?.enabled && state.status?.devices.some((d) => d.serial === state.status.serial && d.state === 'device');
-  for (const button of document.querySelectorAll('[data-gesture],#capture,#wake,#say,#run,#push,#open-agent,#exit-agent')) button.disabled = state.busy || !connected;
+  for (const button of document.querySelectorAll('[data-gesture],#capture,#wake,#say,#run,#push,#open-agent,#exit-agent,#imu-apply')) button.disabled = state.busy || !connected;
   $('push').disabled ||= Boolean(state.status?.agentError) || state.status?.push?.status === 'running';
   $('say').disabled ||= !state.status?.capabilities.asrText;
   $('wake').disabled ||= !state.status?.capabilities.wakeAssistant;
@@ -56,6 +56,7 @@ async function refresh() {
   else note(connected ? '眼镜已连接。点「推到真机」装上调试包并打开，或在眼镜里手动打开应用。' : '选择一台已授权的眼镜。');
   renderDevice();
   renderPush();
+  renderImu().catch(() => {});
   alignSimulator();
   connectLogs();
   state.scenarios = await api('scenarios');
@@ -103,6 +104,9 @@ function renderDevice() {
   }));
 }
 const pushLabels = { idle: '未推送', running: '推送中', done: '已推送', queued: '已装上 · 未显示', failed: '失败' };
+/** 推送前关掉助手的结果：销毁了几个旧实例。 */
+const reclaimLabel = (r) => (!r || r.already ? '' : r.closed ? `回收旧实例 ${r.dropped} 个` : '助手没关掉，旧实例还在');
+
 function renderPush() {
   const s = state.status;
   if (!s) return;
@@ -122,8 +126,9 @@ function renderPush() {
   $('push-note').textContent = push.status === 'running' ? `${push.trigger === 'save' ? '保存后自动推送' : '推送'}：${push.stage || ''}…`
     : push.status === 'failed' ? `第「${push.stage || '?'}」步失败：${push.error}`
       : push.status === 'done' || push.status === 'queued'
-        ? [`${push.trigger === 'save' ? '保存后自动推送' : '推送'}完成 ${seconds}`, push.installed?.outcome, push.opened?.note || push.note].filter(Boolean).join(' · ')
-        : push.pending ? '源码有改动，等手头的操作结束后推送' : '本机调试安装：打包 → 装上调试包 → 打开 → 截图，不经过手机和 Studio。';
+        ? [`${push.trigger === 'save' ? '保存后自动推送' : '推送'}完成 ${seconds}`, push.installed?.outcome, reclaimLabel(push.reclaimed),
+          push.opened?.note || push.note].filter(Boolean).join(' · ')
+        : push.pending ? '源码有改动，等手头的操作结束后推送' : '本机调试安装：打包 → 装上调试包 → 关掉助手回收旧实例 → 打开 → 截图，不经过手机和 Studio。';
   $('push-note').classList?.toggle('error', push.status === 'failed');
   if (push.screenshot && push.screenshot.id !== state.pushShot) {
     state.pushShot = push.screenshot.id;
@@ -271,10 +276,71 @@ for (const box of document.querySelectorAll('[data-log-source]')) box.onchange =
   for (const li of $('device-logs').children) li.hidden = !show.has(li.dataset.source);
 };
 $('logs-clear').onclick = () => $('device-logs').replaceChildren();
+// ── 模拟 IMU ──
+const imuLabels = { real: '真实传感器', replay: '回放', live: '实时', record: '录制' };
+async function renderImu() {
+  if (!state.status?.enabled) return;
+  const imu = await api('imu');
+  state.imu = imu;
+  const mode = $('imu-mode');
+  if (document.activeElement !== mode && !mode.dataset.dirty) mode.value = imu.settings.mode;
+  const traceSelect = $('imu-trace');
+  const ids = imu.traces.map((t) => t.id);
+  if (traceSelect.dataset.ids !== ids.join('|')) {
+    const prev = traceSelect.value || imu.settings.trace;
+    traceSelect.replaceChildren(new Option(ids.length ? '选轨迹…' : '工程里还没有轨迹（e2e/traces/）', ''), ...ids.map((id) => new Option(id, id)));
+    traceSelect.dataset.ids = ids.join('|');
+    if (ids.includes(prev)) traceSelect.value = prev;
+    renderSegments();
+  }
+  const view = mode.value;
+  $('imu-trace-row').hidden = view !== 'replay' && view !== 'live';
+  $('imu-live-panel').hidden = view !== 'live';
+  $('imu-record-panel').hidden = view !== 'record';
+  const installed = imu.installed?.mode || 'real';
+  $('imu-state').textContent = `眼镜上：${imuLabels[installed]}`;
+  const rec = imu.recording;
+  const sensors = Object.entries(rec.sensors || {}).map(([n, v]) => `${n} ${v.seconds}s`).join(' · ');
+  $('imu-note').textContent = view === 'record'
+    ? (sensors ? `已收到：${sensors}${rec.errors?.length ? ` · 错误 ${rec.errors.map((e) => `${e.sensor} ${e.error}`).join('、')}` : ''}` : '推送录制模式的包并打开应用后，读数会出现在这里')
+    : view === 'live' ? (imu.live.connected ? `已连上眼镜 · ${(imu.live.state?.sessions || []).map((s) => `${s.sensor} ${s.source}`).join('、') || '应用还没开传感器'}` : '眼镜上的实时调试包还没连上（推送实时模式的包并打开应用）')
+      : view === 'replay' ? '选一条轨迹（可以只放其中一段），切换并推送后每次传感器 start 都从头放' : '正常调试包，用眼镜的真传感器';
+}
+function renderSegments() {
+  const trace = state.imu?.traces.find((t) => t.id === $('imu-trace').value);
+  const segments = trace?.segments || [];
+  $('imu-segment').replaceChildren(new Option('整条', ''), ...segments.map((s) => new Option(`${s.label || s.id}（${Math.round(s.durationMs / 1000)}s）`, s.id)));
+  if (state.imu?.settings.trace === $('imu-trace').value && state.imu.settings.segment) $('imu-segment').value = state.imu.settings.segment;
+}
+$('imu-mode').onchange = () => { $('imu-mode').dataset.dirty = '1'; renderImu().catch(() => {}); };
+$('imu-trace').onchange = renderSegments;
+$('imu-apply').onclick = handle(async () => {
+  await api('imu/mode', { mode: $('imu-mode').value, trace: $('imu-trace').value, segment: $('imu-segment').value, loop: $('imu-loop').checked });
+  delete $('imu-mode').dataset.dirty;
+  await pushAction('push', { page: $('push-page').value });
+  await renderImu();
+});
+const imuLive = (body, done) => handle(async () => { const r = await api('imu/live', body()); $('imu-note').textContent = done(r); });
+$('imu-live-play').onclick = imuLive(() => ({ type: 'play', trace: $('imu-trace').value, segment: $('imu-segment').value, loop: $('imu-loop').checked }),
+  (r) => `已下发：${r.sensors.join('、')}`);
+$('imu-live-clear').onclick = imuLive(() => ({ type: 'clear' }), () => '已回到真传感器');
+$('imu-live-error').onclick = imuLive(() => ({ type: 'error', sensor: $('imu-fault-sensor').value, error: $('imu-fault').value, message: 'InkLab 注入' }),
+  (r) => `已注入 ${r.sensors[0]} 故障（粘性，要手动清除）`);
+$('imu-live-clear-error').onclick = imuLive(() => ({ type: 'clearError' }), () => '已清除故障');
+$('imu-save').onclick = handle(async () => {
+  const seconds = $('imu-seconds').value.trim();
+  const saved = await api('imu/save', { name: $('imu-name').value.trim(), ...(seconds ? { lastSeconds: Number(seconds) } : {}) });
+  $('imu-note').textContent = `已存：e2e/traces/${saved.id}.json · ${(saved.durationMs / 1000).toFixed(1)}s`;
+  await renderImu();
+});
+$('imu-mark').onclick = handle(async () => { const m = await api('imu/mark', { label: $('imu-name').value.trim() || '标记' }); $('imu-note').textContent = `已打标记「${m.label}」`; });
+$('imu-clear').onclick = handle(async () => { await api('imu/clear', {}); await renderImu(); });
+
 // 保存即推送由服务端触发：页面轮询状态，把推送进度和推送后的截图显示出来。
 setInterval(() => {
   if (!state.ready || state.busy || document.hidden || !state.status?.enabled) return;
   api('status').then((status) => { state.status = status; renderPush(); controls(); }).catch(() => {});
+  renderImu().catch(() => {});
 }, 3000);
 $('say').onclick = handle(() => command({ command: 'say', value: $('speech').value, waitMs: 800 }));
 $('wake').onclick = handle(() => command({ command: 'wake-assistant', waitMs: 300 }));

@@ -11,6 +11,7 @@ import {
   refreshRecordingState, startStageRecording, stopRecordingTicker, stopStageRecording,
 } from '/host/inklab/recording.js';
 import { makeDriver } from '/host/inklab/stage.js';
+import { createLabImu } from '/host/inklab/imu-library.js';
 
 // ── 场景跑测 ────────────────────────────────────────────────────────────
 
@@ -126,6 +127,8 @@ export async function runScenario(id = $('scenario-pick').value, options = {}) {
         },
         // 排障用：引擎日志尾巴（本次装载以来）。断言别依赖它，失败信息里带它。
         logTail: (n = 12) => engineLog.slice(state.bootLogFrom || 0).slice(-n).map((r) => r.text),
+        // 工程里的 IMU 轨迹（e2e/traces/，真机录的或合成的）：await lab.imu.play('名字#段落')。
+        imu: createLabImu(stage.caps.sensors),
       },
     });
     builtSteps = steps;

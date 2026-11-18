@@ -19,7 +19,7 @@ export default [
   {
     // 浏览器侧：host/、scenarios/、lib/（除 lib/node/）。故意不给 Node 全局，
     // 误用 process / Buffer 会被 no-undef 抓到，与 __tests__/boundaries.test.mjs 互为双保险。
-    files: ['host/**/*.js', 'scenarios/**/*.mjs', 'lib/**/*.mjs'],
+    files: ['host/**/*.js', 'scenarios/**/*.mjs', 'lib/**/*.mjs', 'lib/device-imu/**/*.js'],
     ignores: ['lib/node/**'],
     languageOptions: { globals: { ...globals.browser } },
   },

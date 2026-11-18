@@ -219,6 +219,8 @@ export async function bootStage({
   const caps = createHostCapabilities({
     dispatchEvent,
     media: { allowImplicitAudioStreams: mockAudioCaptureEnabled },
+    // 传感器按哪台真机的脾气来（inklab.config.json 的 sensorProfile；缺省 generic）。
+    sensors: { profile: info.config?.sensorProfile || null },
     // 工程场景可直接复用自身 assets 作为拍照 fixture；404 不得被当照片字节。
     readFile: (name) => readProjectFile(name, hostFetch),
     fetch: hostFetch,             // live/record 时 LLM 的上游、以及非 LLM 请求的透传出口

@@ -17,7 +17,7 @@
   语音模拟同时支持旧识别接口与 0.18+ 引擎的流式接口。纯音频采集使用本地空音轨和模拟 PCM 帧，无需申请麦克风权限；识别结果仍由文字注入，用于验证应用行为，不能证明真实声音的识别质量。
 - **自动化场景与截图比对**——用简单的 JS 脚本编排按键、等待、截图和断言，可在浏览器里交互运行，也可在无头浏览器（Headless Chrome）中跑 CI。参考截图带有源码和引擎版本的指纹，一旦代码或引擎更新而截图未更新，会自动标记为过期（`stale`）。
 - **测试报告与录屏**——一键导出 `run.json`（包含源码版本、引擎哈希、执行时间线、网络日志、截图产物），或将应用画面直接录制成 MP4/WebM 视频。
-- **可选：USB 连真机联动**——一键（或每次保存）把调试包推到眼镜上并打开，回放真实触控板手势，实时投屏并显示应用日志，模拟器引擎自动对齐眼镜上的 Ink 版本，模拟器场景直接在真机上跑并生成截图对照，见 [docs/device.md](docs/device.md)。
+- **可选：USB 连真机联动**——一键（或每次保存）把调试包推到眼镜上并打开，回放真实触控板手势，实时投屏并显示应用日志，模拟器引擎自动对齐眼镜上的 Ink 版本，模拟器场景直接在真机上跑并生成截图对照；调试包里还能模拟 IMU（回放录好的轨迹、从工作台实时下发，或把真机读数录成工程轨迹，模拟器也放同一批文件），见 [docs/device.md](docs/device.md)。
 
 InkLab 用的是 Rokid 在 npm 上发布、并嵌在 AIUI Studio 与 Craft 网页里的同一个渲染引擎，因此**它能替代在 Craft 里手动点测，但不能替代最终的真机验收**：光学显示、功耗、真实传感器精度、麦克风收音和蓝牙信号仍需在真实眼镜上验证。
 
@@ -81,6 +81,7 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 | `inklab-engine [<lane>…] [--check\|--discover\|--list]` | 检查 npm（`@yodaos-pkg/ink` 的 `latest`、`daily` 标签）、AIUI Studio 和 Craft 上的引擎版本，把新版本记入 `runtimes.lock.json`，并下载 `.engine/` 中缺失的文件。`--check` 仅在本地校验文件完整性；`--discover` 仅预览线上是否有新版本（有新版本时退出码为 2）；`--list` 列出本机的 lane 和各通道当前指向哪条（`--list --json` 给脚本用）。 |
 | `inklab-device info\|push <应用>\|open\|exit\|gesture <手势>\|agents` | USB 真机（可选）：查看设备与 Ink 版本、推送并打开调试包、回放触控板手势、列出调试包。 |
 | `inklab-device <应用目录> --serial SN --scenario ID` | 在真实眼镜上运行真机场景或模拟器 `.mjs` 场景；模拟器场景另出一份截图对照 `compare.html`。 |
+| `inklab-device push <应用> --imu replay\|record --trace 名字` · `imu-record` · `imu-guide` | 真机模拟 IMU：推回放轨迹或录制真机读数的调试包；引导录制一整套动作存进 `e2e/traces/`。 |
 | `npm run install-cli [-- --uninstall]` | 安装或卸载上面这些命令（见快速开始）。每个命令都支持 `--help` 和 `--version`。 |
 | `npm test` · `npm run lint` | 运行单元测试（无需联网和浏览器）· 运行 ESLint 代码检查（需先执行 `npm ci`）。 |
 
@@ -123,7 +124,7 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 ## 文档导航
 
 - [使用指南](docs/guide.md)——工作台功能、硬件模拟控制、编写测试场景、e2e 运行、LLM 录制回放、截图基线。
-- [USB 连真机](docs/device.md)——推送并打开调试包、触控板手势、实时投屏与日志、真机测试场景、应用端控制脚本约定。
+- [USB 连真机](docs/device.md)——推送并打开调试包、触控板手势、实时投屏与日志、模拟 IMU 与轨迹录制、真机测试场景、应用端控制脚本约定。
 - [运行时实测笔记](docs/runtime-notes.md)——实测总结的引擎底层机制与时序规律，写自动化脚本前必读。
 
 工作台界面与详细文档目前为中文；欢迎使用中文或英文提交 Issue 和 PR。

@@ -80,7 +80,7 @@
         <div class="section-heading"><h2 id="push-heading">推到真机</h2><span id="push-state" class="pill">未推送</span></div>
         <p id="push-agent" class="muted small"></p>
         <div class="row"><select id="push-page" aria-label="打开哪一页"></select></div>
-        <div class="row"><button id="push" class="primary">推到真机</button><button id="open-agent">只打开</button><button id="exit-agent">退出应用</button></div>
+        <div class="row"><button id="push" class="primary">推到真机</button><button id="open-agent">只打开</button><button id="exit-agent" title="连续双击把 AI 助手整个关掉，助手里的实例（包括推送留下的旧实例）一起销毁">关掉助手</button></div>
         <label class="small"><input type="checkbox" id="auto-push"> 保存源码时自动推到真机</label>
         <p id="push-note" class="muted small" role="status"></p>
         <details id="agents-section">
@@ -88,6 +88,43 @@
           <ul id="agents-list" class="agents-list"></ul>
           <p class="muted small">只列开发者通道的调试包；手机同步装的智能体在系统私有目录，adb 读不到名字。</p>
         </details>
+      </section>
+
+      <section class="inspector-section" aria-labelledby="imu-heading">
+        <div class="section-heading"><h2 id="imu-heading">模拟 IMU</h2><span id="imu-state" class="pill">真实传感器</span></div>
+        <div class="row">
+          <select id="imu-mode" aria-label="IMU 模式">
+            <option value="real">真实传感器</option>
+            <option value="replay">回放轨迹（打进包里）</option>
+            <option value="live">实时（工作台随时下发）</option>
+            <option value="record">录制（存成轨迹）</option>
+          </select>
+          <button id="imu-apply" title="换成这个模式的调试包并推到眼镜">切换并推送</button>
+        </div>
+        <div class="row" id="imu-trace-row">
+          <select id="imu-trace" aria-label="轨迹（e2e/traces/）"></select>
+          <select id="imu-segment" aria-label="段落"></select>
+          <label class="small"><input type="checkbox" id="imu-loop"> 循环</label>
+        </div>
+        <div id="imu-live-panel" hidden>
+          <div class="row"><button id="imu-live-play">下发播放</button><button id="imu-live-clear">回到真传感器</button></div>
+          <div class="row">
+            <select id="imu-fault-sensor" aria-label="故障传感器">
+              <option value="absoluteOrientation">absoluteOrientation</option><option value="accelerometer">accelerometer</option>
+              <option value="gyroscope">gyroscope</option><option value="magnetometer">magnetometer</option>
+            </select>
+            <select id="imu-fault" aria-label="故障类型">
+              <option value="NotReadableError">NotReadableError</option><option value="NotAllowedError">NotAllowedError</option>
+            </select>
+            <button id="imu-live-error">注入故障</button><button id="imu-live-clear-error">清除</button>
+          </div>
+        </div>
+        <div id="imu-record-panel" hidden>
+          <div class="row"><input id="imu-name" placeholder="轨迹名，如 nod-miss-1" aria-label="轨迹名"><input id="imu-seconds" type="number" min="1" placeholder="最近几秒（空=全部）" aria-label="最近几秒"></div>
+          <div class="row"><button id="imu-save">存成轨迹</button><button id="imu-mark">打标记</button><button id="imu-clear">清空</button></div>
+        </div>
+        <p id="imu-note" class="muted small" role="status"></p>
+        <p class="muted small">回放和实时只替换应用自己 new 出来的传感器（import 遮蔽，源码不动）；World Awareness 的点头摇头识别用引擎内部的传感器，换不掉。轨迹存在 <code>e2e/traces/</code>，模拟器里 <code>lab.imu.play()</code> 读同一批文件。</p>
       </section>
 
       <section class="inspector-section" aria-labelledby="logs-heading">

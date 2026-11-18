@@ -28,9 +28,26 @@ All notable changes to this project are documented in this file. The format foll
 - Simulator `.mjs` scenarios that only press keys, wait and take screenshots run on the glasses, with a `compare.html`
   pairing simulator and device screenshots by name.
 - `inklab-device info | push | open | exit | gesture | agents`.
+- Mock IMU on real glasses: `--imu replay | live | record` (and the workbench's 模拟 IMU panel) push a debug build with the
+  sensor classes replaced through an injected `import` in a temporary copy of the app. Replay bakes a trace (or one segment)
+  into the build; live connects back over `adb reverse` + WebSocket so the workbench can play traces, inject faults or
+  return to the real sensors; record writes real readings to the log and saves them as `e2e/traces/<name>.json`.
+- `inklab-device imu-guide` pushes a guided recorder that walks through still, axis, nod, shake, look-around, talk and walk
+  segments and saves one labelled trace; `inklab-device imu-record` saves what a record-mode build sends.
+- Project IMU traces (`e2e/traces/*.json`, multi-sensor, with segments and marks) in the simulator: `lab.imu.play()`
+  in scenarios and a 工程轨迹 picker in the sensors panel.
+- `sensorProfile: "rokid-rg1"` in `inklab.config.json`: no magnetometer, accelerometer and gyroscope at about 101 Hz
+  for a 60 Hz request, orientation at about 50 Hz for 10 or 30 Hz requests (measured on RG1).
+- Live mode asks instances left over from earlier builds to exit (`wx.exitMiniProgram`); new builds do not replace them.
 
 ### Changed
 
+- Real glasses: push, open and `inklab-device exit` first close the AI assistant with real double taps, one confirmed
+  step at a time (card, end of the round, dialog closed). Old instances left by earlier pushes keep running in the
+  assistant until it closes, so each push now destroys them; the push result reports `reclaimed.dropped`.
+  The workbench's 退出应用 button is now 关掉助手.
+- Sensor trace playback and the still baseline are scheduled on absolute times: late timers no longer accumulate,
+  so a 60 Hz trace plays at 60 Hz instead of about 52 Hz in the browser.
 - The default lane is the `latest` channel among cached lanes instead of the first entry in `runtimes.lock.json`.
 - An unknown `--runtime` now lists the available lanes and the channel names.
 

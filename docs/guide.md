@@ -115,6 +115,24 @@ await __inklab.stopRecording()     // 结束录屏并下载视频文件
 { "sensor": "accelerometer", "speed": 1, "samples": [{ "t": 0, "x": 0, "y": 9.81, "z": 0 }] }
 ```
 
+回放按样本自己的时间戳排在绝对时刻上（轨迹起点 + `t / speed`）：计时器晚到不会累积，60Hz 的轨迹在浏览器里就是 60Hz。
+
+**工程轨迹**：放在被测工程的 `e2e/traces/<名字>.json`，多传感器、带段落（格式见 `lib/imu-trace.mjs`）。真机「模拟 IMU · 录制」
+和 `inklab-device imu-guide` 录下来的就存在这里（见 [docs/device.md](device.md#模拟-imu)）。传感器面板的「工程轨迹」下拉框选一条（可选段落）点「播放轨迹」；
+场景里：
+
+```js
+{ do: () => lab.imu.play('guided-20261117-1030#nod-normal'), label: '放真机录的正常点头' },
+{ wait: 16000 },
+{ expect: async () => countNods() === (await lab.imu.segment('guided-20261117-1030#nod-normal')).expect.nod },
+```
+
+`lab.imu.play(ref, { mode: 'load', loop, speed, sensors })`：`mode: 'load'` 只给之后新开的会话。`lab.imu.list()` 列出工程轨迹，
+`lab.imu.load(id)` 读整条，`lab.imu.summary(id)` 看各传感器样本数和实际频率。
+
+**传感器档案**：`inklab.config.json` 写 `"sensorProfile": "rokid-rg1"`，模拟器的传感器就按 RG1 实测来：没有磁力计（`start` 回
+`OperationError`），加速度计 / 陀螺仪请求 60Hz 给约 101Hz，姿态请求 10 或 30Hz 给约 50Hz。缺省 `generic`（按请求频率给，四个传感器都有）。
+
 > 注：这张卡片模拟的是**眼镜自身**的传感器。如果是外接蓝牙设备（如运动手环/腕表）通过 BLE 发来的六轴数据，请使用下方「蓝牙」面板里的「导入通知 trace」或脚本中的 `playNotificationTrace(...)`。
 
 ### 相机：自动化用模拟图片，手动调试可用电脑摄像头

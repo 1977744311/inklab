@@ -9,7 +9,9 @@ import { parseBluetoothBytes, parseBluetoothNotificationTraceJson } from '/host/
 import {
   createHeadGestureOrientationTrace, createSquatAccelerometerTrace, parseSensorTraceJson,
 } from '/host/lib/sensor-trace.mjs';
+import { playTraceInSimulator } from '/host/lib/imu-trace.mjs';
 import { nextUiTheme } from '/host/lib/ui-preferences.mjs';
+import { loadProjectTrace, pickTrace, projectTraceIds } from '/host/inklab/imu-library.js';
 import { $, boot, esc } from '/host/inklab/dom.js';
 import {
   bluetoothController, bluetoothTrace, capsOf, evidenceLedger, primaryStage, state,
@@ -406,6 +408,46 @@ export function wireConsole() {
     c.sensors.clearTrace(sensor);
     return sensor;
   }, (sensor) => `${esc(sensor)} 已回到静置基线；下次采集生效`);
+  // 工程轨迹（e2e/traces/）：下拉框在用到时按当前工程刷新。
+  const refreshTraceLibrary = () => {
+    const pick = $('sensor-lib-pick');
+    const prev = pick.value;
+    const ids = projectTraceIds();
+    pick.innerHTML = `<option value="">${ids.length ? '工程轨迹…' : '工程轨迹（无）'}</option>`
+      + ids.map((id) => `<option value="${esc(id)}">${esc(id)}</option>`).join('');
+    if (ids.includes(prev)) pick.value = prev;
+    const caps = capsOf();
+    const profile = caps && caps.sensors.profile ? caps.sensors.profile() : null;
+    if (profile) { $('sensor-profile').textContent = profile.id; $('sensor-profile').title = profile.label; }
+  };
+  $('sensor-lib-pick').onfocus = refreshTraceLibrary;
+  $('sensor-lib-pick').onmousedown = refreshTraceLibrary;
+  $('sensor-lib-pick').onchange = async () => {
+    const seg = $('sensor-lib-segment');
+    seg.innerHTML = '<option value="">整条</option>';
+    const id = $('sensor-lib-pick').value;
+    if (!id) return;
+    try {
+      const trace = await loadProjectTrace(id);
+      seg.innerHTML += trace.segments.map((s) => `<option value="${esc(s.id)}">${esc(s.label || s.id)}（${(s.to - s.from) / 1000 | 0}s）</option>`).join('');
+      const sensors = Object.entries(trace.sensors).map(([name, e]) => `${name} ${e.samples.length}`).join(' · ');
+      boot(`轨迹 ${esc(id)}：${(trace.durationMs / 1000).toFixed(1)}s · ${esc(sensors)}${trace.device ? ` · ${esc(trace.device.model || '')} ${esc(trace.device.source || '')}` : ''}`, 'dim');
+    } catch (err) { boot(`读轨迹失败：${esc(err && err.message)}`, 'err'); }
+  };
+  $('sensor-lib-play').onclick = async () => {
+    const id = $('sensor-lib-pick').value;
+    if (!id) { refreshTraceLibrary(); boot('先选一条工程轨迹（e2e/traces/）', 'warn'); return; }
+    if (!capsOf()) { boot('引擎还没跑起来', 'warn'); return; }
+    try {
+      const picked = await pickTrace(id, { segment: $('sensor-lib-segment').value || undefined });
+      const rows = inputTargets().map((stage) => playTraceInSimulator(stage.caps.sensors, picked, { loop: $('sensor-trace-loop').checked }));
+      const active = Object.values(rows[0] || {}).reduce((sum, r) => sum + (r.activeSessions || 0), 0);
+      boot(`已播放 ${esc(id)}${$('sensor-lib-segment').value ? `#${esc($('sensor-lib-segment').value)}` : ''}：`
+        + `${Object.keys(picked.sensors).map(esc).join('、')} · ${(picked.durationMs / 1000).toFixed(1)}s · ${active} 个运行中会话`, active ? 'ok' : 'warn');
+      refreshSensorTraceState();
+    } catch (err) { boot(`播放轨迹失败：${esc(err && err.message)}`, 'err'); }
+  };
+  setTimeout(refreshTraceLibrary, 1500);
   $('sensor-trace-open').onclick = () => $('sensor-trace-file').click();
   $('sensor-trace-file').onchange = async () => {
     const input = $('sensor-trace-file');

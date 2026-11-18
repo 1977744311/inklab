@@ -125,7 +125,8 @@ panicked at library/std/src/sys/sync/mutex/no_threads.rs:19:9:
 - **方法注册**：`hostCapabilities` 的结构为 `{ 命名空间: { 方法名: async (args) => result } }`。若应用调用了宿主未配置的方法，引擎会抛出 `Host capability {ns}.{method} is not configured on Web host`。调试新接口时可挂载 `lib/caps/probe.mjs`，把引擎传过来的真实参数记录到 `window.__inklab.probe.calls`。
 - **向引擎推送事件**：必须通过 `view.getHostCapabilitiesTarget().dispatchEvent(new CustomEvent(name, { detail }))` 派发（见 `lib/caps/index.mjs` 的 `createEventBridge`），且 `detail` 中**必须原样带回引擎启动该会话时传入的 `targetId` 和 `sessionId`**。注意：`InkView` 实例上同名的 `dispatchHostCapabilityEvent` 是给 WASM 内部用的私有方法，宿主不要直接调用。
 - **相机（`media`）**：引擎胶水代码自带的浏览器降级实现只支持麦克风录音和枚举设备，**没有实现 `takePhoto`**。因此 InkLab 默认注入模拟 `media` 模块；手动切换到“电脑摄像头”模式时，仅将 `takePhoto` 替换为 `lib/browser-camera.mjs` 的摄像头抓拍实现。
-- **传感器（`sensors`）**：引擎会将标准 Generic Sensor API 调用转发给宿主的 `sensors` 能力（如 `accelerometer.start`）。回放传感器轨迹（trace）时，模拟器发送给应用的采样 `timestamp` 固定按「启动时刻 + 样本相对时间 `t / speed`」计算，避免浏览器后台定时器延迟导致动作周期变形。默认静置数据不包含运动波形，测试计次或动作校准功能时需调用 `caps.sensors.loadTrace()` 注入真实轨迹数据。
+- **传感器（`sensors`）**：引擎会将标准 Generic Sensor API 调用转发给宿主的 `sensors` 能力（如 `accelerometer.start`）。回放传感器轨迹（trace）时，模拟器发送给应用的采样 `timestamp` 固定按「启动时刻 + 样本相对时间 `t / speed`」计算，**发出时刻也对准这个绝对时刻**（2026-11-17 起）：按「上一条之后再等一个间隔」排的话，计时器每次晚到的几毫秒会累积，60Hz 轨迹实际只放出约 52Hz，按 `performance.now()` 算角速度的应用会看到被放慢的动作。静置基线同样按「开始时刻 + 第 N 条 × 周期」对齐。默认静置数据不包含运动波形，测试计次或动作校准功能时注入真实轨迹（`caps.sensors.loadTrace()`，或工程轨迹 `lab.imu.play()`）。`inklab.config.json` 的 `sensorProfile`（`lib/caps/sensor-profiles.mjs`）让频率与缺失的传感器按某台真机来。
+- **传感器类在模块里的绑定**：页面和模块里直接写的 `AbsoluteOrientationSensor` 等类名绑定在引擎原生类上，给 `globalThis` 赋值改不到它们；同名 `import` 能在该模块里遮住（0.20/0.21 模拟器与 RG1 真机实测）。真机模拟 IMU 调试包靠这个注入（`lib/node/imu-build.mjs`）。
 
 ### 蓝牙（Bluetooth）不走 `hostCapabilities`（2026-08-27 实测）
 

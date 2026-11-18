@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { deviceWarnings, parseDeviceInfo } from '../lib/node/device-info.mjs';
 import { GESTURES, KEY_TO_GESTURE, gestureScript, profileById, touchpadProfileFor } from '../lib/node/device-input.mjs';
 import {
-  developCall, exitAgent, installAgent, instanceReady, openAgent, parseDevelopResult, parseDeveloperManifest, presentedSince, teardownSince,
+  assistantLogCommand, assistantProgress, closeAssistant, developCall, installAgent, instanceReady, openAgent, parseDevelopResult, parseDeveloperManifest, presentedSince, teardownSince,
   parseProviderReply, projectAgent, projectSlug, requireNoError, withDeveloperMode,
 } from '../lib/node/device-agent.mjs';
 import { createDeviceService } from '../lib/node/device-service.mjs';
@@ -151,7 +151,8 @@ test('打开核验只看这次操作之后的日志：真的全屏显示了才�
 });
 
 /** 假 adb：按命令内容应答，记下每次调用。 */
-function fakeAdb({ manifest = () => '{"packages":[]}', aiuiLog = () => '', developerMode = '1', settings = [], prepareError = '' } = {}) {
+function fakeAdb({ manifest = () => '{"packages":[]}', aiuiLog = () => '', developerMode = '1', settings = [], prepareError = '',
+  focus = () => '', assistantLog = () => '' } = {}) {
   const calls = [];
   const pushed = {};
   const execute = async (file, args) => {
@@ -172,6 +173,8 @@ function fakeAdb({ manifest = () => '{"packages":[]}', aiuiLog = () => '', devel
     if (method === 'status') return { stdout: 'Result: Bundle[{result_data={"errorCode":"","publishState":"QUEUED"}}]' };
     if (method === 'open') return { stdout: 'Result: Bundle[{result_data={"ok":true,"operationId":"op-9"}}]' };
     if (script.includes("grep -F '[AIUI]'")) return { stdout: aiuiLog() };
+    if (script.includes('mCurrentFocus')) return { stdout: focus() };
+    if (script.includes('Dropping Ink instance')) return { stdout: assistantLog() };
     if (script.includes("grep -F 'event=ink_performance'")) return { stdout: aiuiLog().split('\n').filter((l) => l.includes('event=ink_performance')).join('\n') };
     if (script.startsWith('date')) return { stdout: '100.5\n' };
     if (script.includes('echo "model=')) return { stdout: INFO.replace('wear.event1=0 1', 'wear.event1=1 0') };
@@ -254,15 +257,62 @@ test('打开：之后出现全屏显示才算；被挡住时做真双击让前�
   assert.match(queued.note, /它退出后才会显示/);
 });
 
-test('退出：做真双击，之后有全屏应用退下来才算退出', async () => {
-  const leaving = fakeAdb({ aiuiLog: () => aiui(101, { event: 'fullscreen_host_teardown' }) });
-  assert.deepEqual(await exitAgent({ execute: leaving.execute, serial: 'SN1', touchpad: { path: '/dev/input/event1', profile: 'rokid-psoc-tp-r' }, wait: async () => {} }),
-    { left: true, tries: 1 });
-  assert.ok(leaving.calls.some((a) => /k 204; sleep 0\.18; k 204; sleep 0\.30; k 158/.test(a[3] || '')), '退出用的是真双击');
-  const stuck = fakeAdb({ aiuiLog: () => aiui(1, { event: 'fullscreen_host_teardown' }) });
-  const result = await exitAgent({ execute: stuck.execute, serial: 'SN1', attempts: 2, wait: async () => {} });
-  assert.equal(result.left, false, '操作之前的退出记录不算');
-  assert.match(result.note, /双击 2 次后没有全屏应用退下来/);
+const ASSIST = 'mCurrentFocus=Window{109d6af u0 com.rokid.os.sprite.assistserver}';
+const LAUNCHER = 'mCurrentFocus=Window{38090e7 u0 com.rokid.os.sprite.launcher/com.rokid.os.sprite.launcher.main.SpriteMainActivity}';
+const sys = (at, tag, text) => `  ${at}  2009  2009 I ${tag}: ${text}`;
+
+test('助手收起进度：退回卡片、结束这一轮、整个关掉各认各的，之前的日志不算', () => {
+  const log = [
+    sys(99, 'Ink', 'ink::instance: Dropping Ink instance old'),
+    aiui(101, { event: 'fullscreen_return_begin' }),
+    sys(102, 'AssistServer_Log', 'AIAssist -> RokidAIController    userExit'),
+    sys(103, 'AssistServer_Log', 'AiAssistantDialog -> loadFinish onAnimationEnd pagView：  finish_last'),
+    sys(104, 'AssistServer_Log', 'AIAssist -> JsuiFullscreenCoordinator exitFullscreen Card commit observed'),
+  ].join('\n');
+  assert.deepEqual(assistantProgress(log, 100), { returned: true, ended: true, settled: true, dismissed: false, dropped: 0 });
+  const closing = `${log}\n${sys(105, 'AssistServer_Log', 'AIAssist -> AiAssistantDialog    exit')}\n${sys(105.1, 'Ink', 'ink::instance: Dropping Ink instance a')}\n${sys(105.2, 'AssistServer_Log', 'AIAssist -> AiAssistantDialog    dismiss clearModeData=true')}`;
+  assert.deepEqual(assistantProgress(closing, 104.5), { returned: false, ended: false, settled: false, dismissed: true, dropped: 1 });
+  assert.equal(assistantProgress(closing, 0).dropped, 2);
+  const self = sys(106, 'adbd', "RKD-- daemon_service_to_fd : shell,v2,raw:logcat -d | grep -aF -e 'clearModeData' -e 'Dropping Ink instance'");
+  assert.deepEqual(assistantProgress(self, 0), { returned: false, ended: false, settled: false, dismissed: false, dropped: 0 }, 'adbd 记下的这条命令本身不算');
+  assert.equal(assistantLogCommand(1794965000.5),
+    "logcat -d -v epoch -t 1794965000.500 2>/dev/null | grep -aF -e 'fullscreen_return_begin' -e 'fullscreen_host_teardown' -e 'userExit' -e 'finish_last' -e 'clearModeData' -e 'Dropping Ink instance' | grep -vF daemon_service_to_fd");
+});
+
+test('关掉助手：双击一步步退（卡片 → 结束这一轮 → 关掉），每步等日志确认；助手没开就不动', async () => {
+  // 模拟眼镜：每次真双击往前走一步，日志按设备时间往后记。
+  let clock = 100;
+  let taps = 0;
+  const lines = [];
+  const device = fakeAdb({ focus: () => (taps >= 3 ? LAUNCHER : ASSIST), assistantLog: () => lines.join('\n') });
+  const execute = async (file, args) => {
+    const script = String(args[3] || '');
+    if (script.startsWith('date')) return { stdout: `${(clock += 1).toFixed(3)}\n` };
+    if (/k 158/.test(script)) {
+      taps += 1;
+      const at = clock + 0.5;
+      if (taps === 1) lines.push(sys(at, 'Ink', 'ink::instance: Instance x close request denied by host: RootBackspace'), aiui(at, { event: 'fullscreen_return_begin' }));
+      if (taps === 2) lines.push(sys(at, 'AssistServer_Log', 'AIAssist -> RokidAIController    userExit'), sys(at + 0.1, 'AssistServer_Log', 'AiAssistantDialog -> loadFinish onAnimationEnd pagView：  finish_last'));
+      if (taps === 3) lines.push(sys(at, 'AssistServer_Log', 'AIAssist -> AiAssistantDialog    exit'), sys(at, 'Ink', 'ink::instance: Dropping Ink instance a'),
+        sys(at, 'Ink', 'ink::instance: Dropping Ink instance b'), sys(at, 'AssistServer_Log', 'AIAssist -> AiAssistantDialog    dismiss clearModeData=true'));
+    }
+    return device.execute(file, args);
+  };
+  const touchpad = { path: '/dev/input/event1', profile: 'rokid-psoc-tp-r' };
+  assert.deepEqual(await closeAssistant({ execute, serial: 'SN1', touchpad, wait: async () => {}, stepTimeoutMs: 0 }),
+    { closed: true, already: false, taps: 3, dropped: 2 });
+  assert.ok(device.calls.some((a) => /k 204; sleep 0\.18; k 204; sleep 0\.30; k 158/.test(a[3] || '')), '用的是真双击');
+
+  const idle = fakeAdb({ focus: () => LAUNCHER });
+  assert.deepEqual(await closeAssistant({ execute: idle.execute, serial: 'SN1', touchpad, wait: async () => {} }),
+    { closed: true, already: true, taps: 0, dropped: 0 });
+  assert.ok(!idle.calls.some((a) => /k 158|keyevent 4/.test(a[3] || '')), '助手没开时不双击（不往桌面发返回）');
+
+  // 应用把返回当成「上一层」：每一下都没进展，试满次数后如实说。
+  const stuck = fakeAdb({ focus: () => ASSIST, assistantLog: () => sys(1, 'AssistServer_Log', 'AIAssist -> AiAssistantDialog    exit') });
+  const result = await closeAssistant({ execute: stuck.execute, serial: 'SN1', touchpad, wait: async () => {}, maxTaps: 2, stepTimeoutMs: 0 });
+  assert.deepEqual({ closed: result.closed, taps: result.taps }, { closed: false, taps: 2 }, '操作之前的关闭记录不算');
+  assert.match(result.note, /双击 2 次后助手还开着/);
 });
 
 // 假 logcat：启动后吐两行（一行应用告警，一行无关），记下启动参数。
@@ -276,7 +326,7 @@ function fakeLogcat(bin, args) {
   return child;
 }
 
-async function serviceFixture(t, { build } = {}) {
+async function serviceFixture(t, { build, adbOptions = {} } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'inklab-device-push-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const appDir = join(root, 'aiui-demo', 'app');
@@ -288,6 +338,7 @@ async function serviceFixture(t, { build } = {}) {
     aiuiLog: () => [aiui(101, { event: 'runtime_state', trace_id: 'op-9', to_state: 'READY' }),
       aiui(102, { event: 'fullscreen_present_result', agent_id: 'develop.rokid.inklab.demo', outcome: 'COMMITTED' }),
       aiui(200, { event: 'ink_performance', agent_id: 'develop.rokid.inklab.demo' })].join('\n'),
+    ...adbOptions,
   });
   const builds = [];
   const fakeBuild = build || (async (dir) => { builds.push(dir); installed = `md5-${builds.length}`; return { aixPath: join(root, 'x.aix'), md5: installed, bytes: 10, cleanup: async () => {} }; });
@@ -314,6 +365,23 @@ test('推到真机：打包 → 安装 → 打开 → 等第一帧 → 截图，
   assert.ok(result.screenshot.file);
   assert.deepEqual(logcatStarts.at(-1), ['-s', 'SN1', 'logcat', '-v', 'epoch', '-T', '1']);
   assert.deepEqual(result.logs.map((entry) => [entry.source, entry.level, entry.text]), [['app', 'warn', '[audio] 播放失败 music']]);
+  assert.deepEqual(result.reclaimed, { closed: true, already: true, taps: 0, dropped: 0 }, '助手没开：不双击');
+});
+
+test('推到真机：打开之前先把助手整个关掉，旧实例一起销毁，结果写进状态', async (t) => {
+  const closing = [sys(101, 'AssistServer_Log', 'AIAssist -> AiAssistantDialog    exit'), sys(101, 'Ink', 'ink::instance: Dropping Ink instance old-1'),
+    sys(101, 'Ink', 'ink::instance: Dropping Ink instance old-2'), sys(101, 'AssistServer_Log', 'AIAssist -> AiAssistantDialog    dismiss clearModeData=true')].join('\n');
+  const { service, adb } = await serviceFixture(t, { adbOptions: { focus: () => ASSIST, assistantLog: () => closing } });
+  await service.status();
+  const result = await service.push();
+  assert.deepEqual(result.reclaimed, { closed: true, already: false, taps: 1, dropped: 2 });
+  const scripts = adb.calls.map((a) => String(a[3] || ''));
+  const tapAt = scripts.findIndex((cmd) => /k 158|keyevent 4$/.test(cmd));
+  const openAt = scripts.findIndex((cmd) => cmd.includes("'--method' 'open'"));
+  assert.ok(tapAt >= 0 && tapAt < openAt, '先关助手再打开');
+  const exited = await service.exit();
+  assert.equal(exited.left, true);
+  assert.match(exited.note, /已关掉助手，销毁了 2 个实例/);
 });
 
 test('日志解析：应用日志、引擎日志、运行时事件摘要，其余丢掉', () => {
@@ -355,12 +423,23 @@ test('推送失败时状态里记下卡在哪一步', async (t) => {
 
 test('inklab-device 子命令参数', () => {
   assert.deepEqual(parseSubcommand(['push', 'app', '--page', 'pages/a/index', '--serial', 'SN1']),
-    { command: 'push', serial: 'SN1', page: 'pages/a/index', input: 'app', agent: '', gesture: '', holdMs: undefined, json: false });
+    { command: 'push', serial: 'SN1', page: 'pages/a/index', input: 'app', agent: '', gesture: '', holdMs: undefined, json: false,
+      imu: '', trace: '', loop: false, name: '', seconds: undefined, note: '', overwrite: false, push: false });
   assert.equal(parseSubcommand(['open', '--agent', 'd59988baa3904de8822978c1b4ec15af', '--page', 'pages/home/index']).agent, 'd59988baa3904de8822978c1b4ec15af');
   assert.throws(() => parseSubcommand(['open']), /--agent/);
   assert.equal(parseSubcommand(['gesture', 'long-press', '--hold-ms', '1500']).holdMs, 1500);
   assert.throws(() => parseSubcommand(['gesture', 'pinch']), /用法/);
   assert.throws(() => parseSubcommand(['push']), /用法/);
+  const replay = parseSubcommand(['push', 'app', '--imu', 'replay', '--trace', 'guided#nod-normal', '--loop']);
+  assert.deepEqual([replay.imu, replay.trace, replay.loop], ['replay', 'guided#nod-normal', true]);
+  assert.throws(() => parseSubcommand(['push', 'app', '--imu', 'replay']), /--trace/);
+  assert.throws(() => parseSubcommand(['push', 'app', '--imu', 'live']), /工作台/);
+  assert.throws(() => parseSubcommand(['push', 'app', '--imu', 'fly']), /--imu 只能是/);
+  const rec = parseSubcommand(['imu-record', 'app', '--name', 'walk-1', '--seconds', '30', '--push']);
+  assert.deepEqual([rec.name, rec.seconds, rec.push], ['walk-1', 30, true]);
+  assert.throws(() => parseSubcommand(['imu-record', 'app']), /--name/);
+  assert.throws(() => parseSubcommand(['imu-record', 'app', '--name', 'x', '--seconds', '0']), /--seconds/);
+  assert.equal(parseSubcommand(['imu-guide', '../aiui-zhenghuo/app', '--name', 'rg1-guided']).input, '../aiui-zhenghuo/app');
 });
 
 test('模拟器 .mjs 场景拿到真机：调用 build() 取步骤，/app/ 引入映射回应用目录；需要模拟器上下文的标出原因', async (t) => {
