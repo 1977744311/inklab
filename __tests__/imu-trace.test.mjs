@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  RECORD_PREFIX, createRecordingAssembler, decodeRecordLine, encodeTrace, normalizeTrace, playTraceInSimulator,
+  RECORD_PREFIX, createRecordingAssembler, decodeRecordLine, encodeTrace, normalizeTrace, playTraceInSimulator, rebaseOrientation,
   sliceTrace, traceFileName, traceSummary,
 } from '../lib/imu-trace.mjs';
 
@@ -113,4 +113,18 @@ test('轨迹名：小写字母数字点横线下划线', () => {
   assert.equal(traceFileName('rg1-guided'), 'rg1-guided.json');
   assert.throws(() => traceFileName('../x'), /轨迹名/);
   assert.throws(() => traceFileName('Nod'), /轨迹名/);
+});
+
+test('rebaseOrientation：第一条变成单位四元数，之后是相对它的转动；加速度计不动', () => {
+  const h = Math.SQRT1_2;
+  // 第一条：绕 X 转 90°；第二条：再绕 X 多转 90°（共 180°）
+  const trace = normalizeTrace({ format: 'inklab-imu-trace', version: 2, name: 'r', sensors: {
+    absoluteOrientation: { samples: [{ t: 0, x: h, y: 0, z: 0, w: h }, { t: 10, x: 1, y: 0, z: 0, w: 0 }] },
+    accelerometer: { samples: [{ t: 0, x: 1, y: 2, z: 3 }] } } });
+  const out = rebaseOrientation(trace);
+  const [a, b] = out.sensors.absoluteOrientation.samples;
+  assert.deepEqual([a.x, a.y, a.z, a.w].map((v) => Math.round(v * 1e6) / 1e6), [0, 0, 0, 1]);
+  assert.deepEqual([b.x, b.y, b.z, b.w].map((v) => Math.round(v * 1e6) / 1e6), [0.707107, 0, 0, 0.707107]);
+  assert.equal(out.sensors.accelerometer, trace.sensors.accelerometer);
+  assert.equal(trace.sensors.absoluteOrientation.samples[0].x, h, '不改原轨迹');
 });

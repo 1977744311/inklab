@@ -7,6 +7,16 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- `inklab-device wifi` turns on wireless debugging (adb over TCP) while the glasses are plugged in, connects over Wi-Fi
+  and checks the link, so recording and gestures keep working after the cable comes out; `--off` turns it back off.
+  When one pair of glasses shows up twice (USB and Wi-Fi), commands pick the Wi-Fi connection. The address is kept in
+  `~/.cache/inklab/wifi-adb.json`, and commands reconnect to it after the adb server restarts.
+- The device log stream reconnects when logcat drops (every 2 s) and resumes from the last line's time without
+  duplicates. Saved IMU traces report gaps over 250 ms inside a segment.
+- `lab.imu.play(ref, { from, to, rebase })` cuts a trace by time, and `rebase: true` replays orientation relative to the
+  slice's first reading. Recorded orientation is in Android's world frame, while the simulator's resting pose is the identity
+  quaternion, so an app that already took its reference pose needs `rebase` to see the recorded head motion.
+
 - `inklab-engine` checks npm (`@yodaos-pkg/ink`, tags `latest` and `daily`) before the AIUI Studio and Craft sites.
   New versions become `npm-ink-<version>` lanes; the package tarball is verified against its `integrity` and
   extracted whole, and can be downloaded again if the cache is lost.

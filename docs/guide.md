@@ -127,7 +127,7 @@ await __inklab.stopRecording()     // 结束录屏并下载视频文件
 { expect: async () => countNods() === (await lab.imu.segment('guided-20261117-1030#nod-normal')).expect.nod },
 ```
 
-`lab.imu.play(ref, { mode: 'load', loop, speed, sensors })`：`mode: 'load'` 只给之后新开的会话。`lab.imu.list()` 列出工程轨迹，
+`lab.imu.play(ref, { mode: 'load', loop, speed, sensors, from, to, rebase })`：`mode: 'load'` 只给之后新开的会话；`from` / `to` 按轨迹时间（ms）截一段；`rebase: true` 把姿态改成相对这一段第一条读数的转动。真机姿态在 Android 世界坐标里（Z 朝上），模拟器的静置姿态是单位四元数：应用已经以静置姿态取了「正前方」再切到真机轨迹时要加 `rebase`，否则算出的转头角度是乱的。`lab.imu.list()` 列出工程轨迹，
 `lab.imu.load(id)` 读整条，`lab.imu.summary(id)` 看各传感器样本数和实际频率。
 
 **传感器档案**：`inklab.config.json` 写 `"sensorProfile": "rokid-rg1"`，模拟器的传感器就按 RG1 实测来：没有磁力计（`start` 回

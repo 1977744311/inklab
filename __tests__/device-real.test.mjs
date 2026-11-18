@@ -424,7 +424,7 @@ test('推送失败时状态里记下卡在哪一步', async (t) => {
 test('inklab-device 子命令参数', () => {
   assert.deepEqual(parseSubcommand(['push', 'app', '--page', 'pages/a/index', '--serial', 'SN1']),
     { command: 'push', serial: 'SN1', page: 'pages/a/index', input: 'app', agent: '', gesture: '', holdMs: undefined, json: false,
-      imu: '', trace: '', loop: false, name: '', seconds: undefined, note: '', overwrite: false, push: false });
+      imu: '', trace: '', loop: false, name: '', seconds: undefined, note: '', overwrite: false, push: false, off: false });
   assert.equal(parseSubcommand(['open', '--agent', 'd59988baa3904de8822978c1b4ec15af', '--page', 'pages/home/index']).agent, 'd59988baa3904de8822978c1b4ec15af');
   assert.throws(() => parseSubcommand(['open']), /--agent/);
   assert.equal(parseSubcommand(['gesture', 'long-press', '--hold-ms', '1500']).holdMs, 1500);

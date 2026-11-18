@@ -87,6 +87,7 @@ Your app's tests live in your app's repository; InkLab only provides the host ru
 | `inklab-device info\|push <app>\|open\|exit\|gesture <name>\|agents` | Real glasses over USB (optional): show the device and its Ink version, push and open a debug build, replay touchpad gestures, list debug agents. |
 | `inklab-device <app-dir> --serial SN --scenario ID` | Run a device scenario or a simulator `.mjs` scenario on real glasses; simulator scenarios also get a side-by-side `compare.html`. |
 | `inklab-device push <app> --imu replay\|record --trace NAME` · `imu-record` · `imu-guide` | Mock IMU on real glasses: push a debug build that replays a trace or records real readings; record a guided session into `e2e/traces/`. |
+| `inklab-device wifi [--off]` | Wireless debugging: run once with the cable in, then unplug; commands pick the Wi-Fi connection. |
 | `npm run install-cli [-- --uninstall]` | Install or remove the commands above (see Quick start). Every command accepts `--help` and `--version`. |
 | `npm test` · `npm run lint` | Unit test suite (needs no external network or browser) · ESLint (`npm ci` first; devDependencies are for linting only). |
 

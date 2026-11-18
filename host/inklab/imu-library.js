@@ -1,7 +1,7 @@
 // imu-library.js — 模拟器读工程里的 IMU 轨迹（<app>/e2e/traces/*.json，格式见 lib/imu-trace.mjs）。
 // 场景里用 lab.imu，控制台的「录制轨迹」下拉框也用它；真机录下来的轨迹和这里读的是同一批文件。
 
-import { normalizeTrace, playTraceInSimulator, sliceTrace, traceSummary } from '/host/lib/imu-trace.mjs';
+import { normalizeTrace, playTraceInSimulator, rebaseOrientation, sliceTrace, traceSummary } from '/host/lib/imu-trace.mjs';
 import { readProjectFile } from '/host/lib/project-file.mjs';
 import { state } from '/host/inklab/state.js';
 
@@ -44,6 +44,7 @@ export async function pickTrace(ref, { segment, sensors, from, to } = {}) {
  * 场景用的 lab.imu：
  *   await lab.imu.play('rg1-guided#nod-normal')            立刻切给正在跑的传感器会话
  *   await lab.imu.play('walk', { mode: 'load', loop: true })  只给之后新开的会话
+ *   await lab.imu.play('rg1-guided', { from, to, rebase: true })  按时间截一段；rebase 让姿态从静置姿态接着放
  *   lab.imu.list() / await lab.imu.load(id) / await lab.imu.segment('rg1-guided#nod-normal')
  */
 export function createLabImu(sensorCaps) {
@@ -59,7 +60,8 @@ export function createLabImu(sensorCaps) {
       return found;
     },
     async play(ref, options = {}) {
-      const picked = await pickTrace(ref, options);
+      const sliced = await pickTrace(ref, options);
+      const picked = options.rebase ? rebaseOrientation(sliced) : sliced;
       return { durationMs: picked.durationMs, sensors: playTraceInSimulator(sensorCaps, picked, options) };
     },
   };

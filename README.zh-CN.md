@@ -82,6 +82,7 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 | `inklab-device info\|push <应用>\|open\|exit\|gesture <手势>\|agents` | USB 真机（可选）：查看设备与 Ink 版本、推送并打开调试包、回放触控板手势、列出调试包。 |
 | `inklab-device <应用目录> --serial SN --scenario ID` | 在真实眼镜上运行真机场景或模拟器 `.mjs` 场景；模拟器场景另出一份截图对照 `compare.html`。 |
 | `inklab-device push <应用> --imu replay\|record --trace 名字` · `imu-record` · `imu-guide` | 真机模拟 IMU：推回放轨迹或录制真机读数的调试包；引导录制一整套动作存进 `e2e/traces/`。 |
+| `inklab-device wifi [--off]` | 无线调试：插着线跑一次，之后拔线；命令会自动用 Wi-Fi 那个连接。 |
 | `npm run install-cli [-- --uninstall]` | 安装或卸载上面这些命令（见快速开始）。每个命令都支持 `--help` 和 `--version`。 |
 | `npm test` · `npm run lint` | 运行单元测试（无需联网和浏览器）· 运行 ESLint 代码检查（需先执行 `npm ci`）。 |
 
