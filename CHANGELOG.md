@@ -7,6 +7,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- The USB glasses workbench works without `--device`: switching to **USB 真机** turns device control on (a plain start
+  still never calls ADB), and the glasses are picked automatically when only one pair is connected, preferring Wi-Fi when the
+  same pair is on USB and Wi-Fi, and reconnecting a remembered wireless address. `--device` still turns it on from the start.
 - `inklab-device wifi` turns on wireless debugging (adb over TCP) while the glasses are plugged in, connects over Wi-Fi
   and checks the link, so recording and gestures keep working after the cable comes out; `--off` turns it back off.
   When one pair of glasses shows up twice (USB and Wi-Fi), commands pick the Wi-Fi connection. The address is kept in

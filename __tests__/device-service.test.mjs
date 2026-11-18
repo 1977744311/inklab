@@ -136,8 +136,8 @@ test('cross-origin and missing-token writes cannot reach ADB', async (t) => {
 test('disabled real-device service never probes ADB', async () => {
   const service = createDeviceService({ appDir: '/tmp/no-app', execute() { throw new Error('must not execute'); } });
   assert.equal((await service.status()).enabled, false);
-  await assert.rejects(service.manual({ command: 'key', value: 'right' }), /未启用/);
-  await assert.rejects(service.saveRecording(mp4, 'video/mp4'), /未启用/);
+  await assert.rejects(service.manual({ command: 'key', value: 'right' }), /还没启用/);
+  await assert.rejects(service.saveRecording(mp4, 'video/mp4'), /还没启用/);
 });
 
 test('binary recordings persist privately under generated names and registered artifacts preserve exact bytes', async (t) => {

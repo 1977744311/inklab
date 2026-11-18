@@ -60,7 +60,7 @@ Pop out transfers a seat to another window; closing it restores the tile. Multip
 Tiles show WS status and download progress. Clear one/all players' OPFS and reload to retest downloads; this also removes other files the app stores in OPFS, while preserving localStorage device identity.
 Scenario `build({ players })` receives `players[i].press(key)`, `.shot(name)` and `.caps`; see the [guide](docs/guide.md#多玩家场景).
 
-The header switches between **模拟器** (simulator), **USB 真机** (USB glasses), and **真机 + 模拟器** (side by side). Start with `--device` to control USB glasses. On desktop, the side-by-side view fits both previews at the same size beside the device controls. Join the same app room on both sides and use the simulator's offline and online controls to exercise reconnects. See [USB setup](docs/device.md).
+The header switches between **模拟器** (simulator), **USB 真机** (USB glasses), and **真机 + 模拟器** (side by side). Switching to **USB 真机** turns on device control (a plain start never calls ADB) and picks the glasses automatically when only one pair is connected; `--device` turns it on from the start. On desktop, the side-by-side view fits both previews at the same size beside the device controls. Join the same app room on both sides and use the simulator's offline and online controls to exercise reconnects. See [USB setup](docs/device.md).
 
 ## Core concepts
 

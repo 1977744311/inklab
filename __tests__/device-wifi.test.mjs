@@ -5,7 +5,8 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createDeviceLogs, isNetworkSerial } from '../lib/node/device-logs.mjs';
-import { soleDeviceSerial } from '../lib/node/device-service.mjs';
+import { createDeviceService, soleDeviceSerial } from '../lib/node/device-service.mjs';
+import { nullDeviceLogs } from '../lib/node/device-logs.mjs';
 import { disableWifiAdb, enableWifiAdb, parseWifiStatus, recallWifiTarget, reconnectRemembered } from '../lib/node/device-wifi.mjs';
 import { parseSubcommand } from '../lib/node/device-e2e.mjs';
 import { normalizeTrace, traceSummary } from '../lib/imu-trace.mjs';
@@ -167,4 +168,38 @@ test('adb 服务重启后忘了无线连接：按记下的地址重连一次；�
   assert.equal(calls.length, before, '插着别的设备、或已经连着时不发 connect');
   assert.deepEqual(await reconnectRemembered({ execute: execute(`failed to connect to '${WIFI}': No route to host\n`), file: memory }),
     { serial: null, target: WIFI });
+});
+
+test('不加 --device：切到真机页才启用，之前不碰 ADB；只连着一副眼镜就自动选上', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'inklab-enable-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const make = (listing, id = '1901092534007858') => {
+    const calls = [];
+    const execute = async (bin, args) => {
+      calls.push(args);
+      if (args[0] === 'devices') return { stdout: `List of devices attached\n${listing}` };
+      if (args.includes('getprop ro.serialno')) return { stdout: `${id}\n` };
+      return { stdout: '' };
+    };
+    const service = createDeviceService({ appDir: dir, execute, wifiMemory: join(dir, 'no-memory.json'), logStream: nullDeviceLogs(),
+      vision: { status: async () => ({ available: false, reason: 'test' }) } });
+    return { service, calls };
+  };
+  const both = make(`1901092534007858\tdevice usb:2-1.2 model:RG_glasses\n${WIFI}\tdevice model:RG_glasses\n`);
+  assert.equal((await both.service.status()).enabled, false);
+  assert.equal(both.calls.length, 0, '启用前不碰 ADB');
+  await assert.rejects(both.service.manual({ command: 'key', value: 'right' }), /切到「USB 真机」/);
+  const status = await both.service.enable();
+  assert.equal(status.enabled, true);
+  assert.equal(status.serial, WIFI, '同一副眼镜 USB 和 Wi-Fi 都连着：选 Wi-Fi');
+
+  const usb = make('1901092534007858\tdevice usb:2-1.2 model:RG_glasses\n');
+  assert.equal((await usb.service.enable()).serial, '1901092534007858');
+
+  const two = make('SN-A\tdevice usb:1\nSN-B\tdevice usb:2\n');
+  assert.equal((await two.service.enable()).serial, '', '两副不同的眼镜：让人选');
+  const none = make('');
+  const empty = await none.service.enable();
+  assert.equal(empty.enabled, true);
+  assert.equal(empty.serial, '');
 });

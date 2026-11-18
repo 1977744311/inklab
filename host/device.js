@@ -41,6 +41,8 @@ function displayShot(shot) {
 }
 async function refresh() {
   state.status = await api('status'); state.token = state.status.token;
+  // 切到真机页就启用（普通启动不碰 ADB）；还没选设备时让服务端自动选（只连着一副眼镜时）
+  if (!state.status.enabled || !state.status.serial) state.status = await api('enable', {});
   $('device-select').replaceChildren(...state.status.devices.map((d) => {
     const option = document.createElement('option'); option.value = d.serial;
     option.textContent = `${d.model || 'Android'} · ${d.serial} · ${d.state}`;
@@ -50,10 +52,11 @@ async function refresh() {
   const connected = state.status.devices.some((d) => d.serial === state.status.serial && d.state === 'device');
   $('connection').textContent = state.status.serial || (state.status.enabled ? '未选择设备' : '未启用真机');
   $('connection').classList.toggle('connected', connected);
-  if (!state.status.enabled) note('请用 inklab <工程目录> --device 启动服务。');
-  else if (state.status.error) note(state.status.error, true);
+  if (state.status.error) note(state.status.error, true);
   else if (state.status.deviceError) note(state.status.deviceError, true);
-  else note(connected ? '眼镜已连接。点「推到真机」装上调试包并打开，或在眼镜里手动打开应用。' : '选择一台已授权的眼镜。');
+  else note(connected ? '眼镜已连接。点「推到真机」装上调试包并打开，或在眼镜里手动打开应用。'
+    : state.status.devices.some((d) => d.state === 'device') ? '连着几副眼镜：选一副，点「连接」。'
+      : '没找到眼镜：用 USB 连上并在眼镜上允许调试，或先 inklab-device wifi 打开无线调试。连上后几秒内自动选上。');
   renderDevice();
   renderPush();
   renderImu().catch(() => {});
@@ -339,6 +342,8 @@ $('imu-clear').onclick = handle(async () => { await api('imu/clear', {}); await 
 // 保存即推送由服务端触发：页面轮询状态，把推送进度和推送后的截图显示出来。
 setInterval(() => {
   if (!state.ready || state.busy || document.hidden || !state.status?.enabled) return;
+  // 还没选上眼镜：等它连上就自动选（选上了才整页刷新）
+  if (!state.status.serial) { api('enable', {}).then((status) => { if (status.serial) refresh(); }).catch(() => {}); return; }
   api('status').then((status) => { state.status = status; renderPush(); controls(); }).catch(() => {});
   renderImu().catch(() => {});
 }, 3000);
