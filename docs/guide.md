@@ -1,115 +1,126 @@
 # InkLab 使用指南
 
-安装、首次运行和引擎下载见 [README](../README.zh-CN.md)。本文介绍工作台的各项功能、硬件模拟器怎么控制、以及怎么编写和运行自动化测试场景。
-USB 连接真实眼镜见 [device.md](device.md)；实测总结的引擎底层机制与时序规律见 [runtime-notes.md](runtime-notes.md)（写自动化脚本前必读）。
+这份指南讲模拟器工作台怎么用，以及怎么写、怎么跑自动化测试。安装和第一次下载引擎见 [README](../README.zh-CN.md)，连真眼镜见 [USB 连真机](device.md)。脚本的表现和预期对不上时，查 [运行时实测笔记](runtime-notes.md)。
 
-章节：[工作原理](#工作原理) · [仓库结构](#仓库结构) · [工作台界面与自动化接口](#工作台界面与自动化接口) · [硬件与系统能力模拟](#硬件与系统能力模拟) · [编写测试场景](#编写测试场景) · [运行 e2e 测试](#运行-e2e-测试) · [LLM 怎么接](#llm-怎么接) · [截图基线](#截图基线) · [引擎版本会漂](#引擎版本会漂) · [测试边界](#测试边界)
+| 我想… | 看这一节 |
+| --- | --- |
+| 先跑起来看看 | [五分钟上手](#五分钟上手) |
+| 弄清工作台上每一块是干什么的 | [工作台一览](#工作台一览) |
+| 模拟语音、传感器、相机、蓝牙、网络、大模型 | [模拟硬件](#模拟硬件) |
+| 写一个自动化测试 | [写场景](#写场景) |
+| 在命令行或 CI 里跑测试、比对截图 | [跑自动化测试](#跑自动化测试) |
+| 换引擎、并排对比几个引擎版本 | [引擎版本](#引擎版本) |
+| 测多人联机 | [多玩家](#多玩家) |
+| 在 DevTools 或 CDP 里直接控制工作台 | [自动化接口](#自动化接口) |
+| 分清哪些能在电脑上测、哪些必须上真机 | [原理与边界](#原理与边界) |
 
-在本地直接运行 AIUI 源码目录或 `.aix` 发布包：**代码不会上传，启动后无需依赖外网**。
+## 五分钟上手
 
 ```bash
-npm run engine                               # 首次运行：从 npm 与官方站点获取引擎、生成 runtimes.lock.json 并下载到本地
-npm start -- <app>                           # 直接运行应用源码目录
-npm start -- <app>.aix                       # 直接运行打包好的 .aix 发布包
-npm start -- <app> --compare-with <app>.aix  # 运行源码，并对照 .aix 包的文件差异
-# 打开 http://127.0.0.1:8788/ ，修改源码后页面会自动热重载（服务端 fs.watch → SSE 推送）
+inklab fixtures/cap-probe-app --open     # 没装命令时：npm start -- fixtures/cap-probe-app --open
 ```
 
-## 工作原理
+`fixtures/cap-probe-app` 是仓库自带的探针应用。浏览器打开 <http://127.0.0.1:8788/> 后：
 
-官方 Craft 网页并不是服务端渲染，而是把眼镜上的 Ink 运行容器（QuickJS 跑 JS 逻辑 + Skia 绘制界面）编译成 WebAssembly（`ink_web`）放进浏览器运行。只要给这个 WASM 引擎提供一块 `<canvas>` 画布和一组硬件能力回调函数，它就能自己在浏览器里解析 `.ink` / `.js` / `app.json`、计算排版并处理按键事件。
+1. **操作应用**：点一下画面，用键盘 `↑` `↓` 移动焦点，`Enter` 确认，`Backspace` 返回。
+2. **改代码**：修改应用源码并保存，画面会自动重载。
+3. **跑一个测试**：在预览下方的场景条里选「冒烟：应用能跑起来」，点「运行」。右侧「场景」页会列出每一步的结果和截图。
+4. **模拟一句语音**：在下方「语音识别」卡片里输入一句话，点「说完一句」，应用就会收到这句识别结果。
+5. **在命令行跑同一个测试**：
 
-InkLab 加载的是同一个 `ink_web` 引擎，但**把底层的硬件与系统能力替换成了可控的模拟器**——Craft 只能给人手动点着看，而 InkLab 可以用脚本注入语音、传感器、蓝牙、网络故障，从而实现自动化测试。
+   ```bash
+   inklab-e2e fixtures/cap-probe-app --scenario smoke
+   ```
 
+调试自己的应用时，把路径换成应用的源码目录（目录里有 `app.json`）或打包好的 `.aix`：
+
+```bash
+inklab <应用目录>                            # 运行源码，保存即重载
+inklab <应用>.aix                            # 运行发布包
+inklab <应用目录> --compare-with <应用>.aix  # 运行源码，同时在「工程」页对比两份文件
+inklab <应用目录> --port 8790                # 默认端口 8788 被占用时换一个
 ```
-应用源码目录 ──打包快照──▶ ink_web (WASM) ──渲染──▶ <canvas>
- 或 .aix 包                     ▲
-              硬件与系统能力 (语音/相机/LLM/传感器/网络) ── InkLab 模拟器提供
-              navigator.bluetooth (BLE 模拟 / 电脑蓝牙)  ── 独立浏览器桥接
-```
 
-传入源码目录时，InkLab 会按 `.aixignore` 规则生成内存快照；传入 `.aix` 包时则直接读取包内文件，并在「工程」页展示 `VERSION`、MD5、SHA-256、体积与完整 manifest。加上 `--compare-with` 参数时，「工程」页会按 `+ / - / ~ / =` 列出两份代码的文件差异。
+代码不会上传。引擎下载好以后，运行时也不需要外网。
 
-## 仓库结构
+## 工作台一览
 
-| 路径 | 作用 |
+| 区域 | 位置 | 用途 |
+| --- | --- | --- |
+| 顶栏 | 最上方 | 在「模拟器」「USB 真机」「真机 + 模拟器」三种模式之间切换。还有「热重载」开关和源码监听状态、浅色 / 深色切换、右侧 Inspector 的收起按钮。 |
+| 预览 | 左上 | 左上角的「引擎」菜单选择引擎，可以多选并排。右上角是「重载」「唤醒」「截图」「开始录制」。画面下方切换「视图」和「环境」，勾选「镜像输入」，并显示工程身份（源码或 AIX、体积、SHA-256）。 |
+| 场景条 | 预览下方 | 选择场景，点「运行」，勾选「录屏」，或「清空」结果。下面一行是场景说明，悬停可看全文。 |
+| 能力控制 | 场景条下方 | 模拟硬件的卡片，按「交互 / 设备 / 传感 / 全部」分页。打开右侧「说明」开关，每张卡会显示一句说明；悬停在按钮上能看到更细的解释。 |
+| Inspector | 右侧 | 共七页，顶部输入框可以筛选当前页内容，见下表。 |
+
+| Inspector 页 | 看什么 |
 | --- | --- |
-| `bin/` | 命令行入口：`inklab`、`inklab-e2e`、`inklab-matrix`、`inklab-engine`、`inklab-device` |
-| `host/` | 浏览器端工作台页面：入口为 `host/inklab.js`，子模块位于 `host/inklab/*.js`；`host/device*` 为 USB 真机测试页面 |
-| `lib/` | 浏览器与 Node 共用的纯逻辑模块，**严禁依赖 Node 内置模块**（由 `__tests__/boundaries.test.mjs` 自动检查）：含 `caps/`（硬件能力模拟器）、`bundle.mjs`（源码快照与预检）、`aix.mjs`（`.aix` 解析）、`runtime-lock.mjs`（引擎清单校验）、`driver.mjs`（场景驱动与按键时序）、`recording.mjs`（画布录屏）、`shots.mjs`（像素比对）、`stamp.mjs`（源码与引擎指纹） |
-| `lib/node/` | 仅在 Node 端运行：`serve.mjs`（本地 Web 服务）、`e2e*.mjs`（无头 Chrome 测试执行器）、`matrix.mjs`（多引擎版本 × 环境光矩阵对比）、`fetch-engine.mjs` 等（引擎发现、下载与锁文件读写）、`project-source.mjs`（工程快照与文件对比）、`device-*.mjs`（USB 真机服务与执行器） |
-| `runtimes.lock.json` | **不入库**（本机状态）。记录本机发现的引擎版本列表、来源 URL 与 SHA-256 哈希；列表第一项为默认版本，由 `npm run engine` 自动生成和维护 |
-| `.engine/` | **不入库**。引擎二进制缓存目录（可通过 `INKLAB_ENGINE_DIR` 修改位置），按 `.engine/runtimes/<lane id>/` 存放 |
-| `scenarios/` | **内置通用**测试场景（`smoke` 冒烟测试）。应用专属的测试场景放在应用自己的 `<app>/e2e/scenarios/` 目录下 |
-| `fixtures/cap-probe-app/` | 内置的引擎能力探针应用（用于测试引擎 API 支持度，非业务代码） |
-| `docs/runtime-notes.md` | **实测总结的引擎底层机制与时序规律，写自动化脚本前必读** |
+| 启动 | 启动过程和预检报错。缺少 `app.json` / `app.js`、注册了不存在的页面，启动前就会在这里报出来。 |
+| 日志 | 引擎日志 |
+| 网络 | 每个请求的判定、请求头、响应和正文（密钥已脱敏） |
+| 能力 | 应用调用了哪些硬件接口、传了什么参数 |
+| 场景 | 场景每一步的耗时、失败原因和截图 |
+| 工程 | 文件清单。`.aix` 会显示 `VERSION`、MD5、SHA-256、体积和完整 manifest；加 `--compare-with` 时用 `+ / - / ~ / =` 列出两份代码的差异 |
+| 证据 | 导出 `run.json`：源码哈希、引擎锁、时间线、网络日志和截图 |
 
-## 工作台界面与自动化接口
+几个容易忽略的地方：
 
-- 顶部模式栏在「模拟器」「USB 真机」「真机 + 模拟器」之间切换，并保留 URL 中选定的运行时。切到「USB 真机」就启用真机（普通启动不碰 ADB），连着一副眼镜时自动选上；`--device` 让它一启动就启用。
-- **界面布局**：左侧从上到下是预览、场景条和能力控制，右侧是 Inspector。
-  - **顶栏**：工程与运行状态、「热重载」开关和源码监听状态、浅色/暗色切换（模拟器与真机页共用，只改工具外壳颜色，不影响应用画布像素和截图基线）、Inspector 收起/展开。
-  - **预览**：左上角「引擎」下拉面板选运行时；右上角是「重载」「唤醒」「截图」「开始录制」；画面下方是「视图」「环境」「镜像输入」和工程身份（源码目录或 AIX、体积、SHA-256）。
-  - **场景条**：选场景、「运行」、「录屏」、「清空」，旁边一行显示场景说明（悬停看全文）。
-  - **能力控制**：按「交互 / 设备 / 传感 / 全部」分页；右侧「说明」开关给每张卡片显示一句话说明，按钮的悬停提示里有更细的解释。
-- **多引擎并排运行（运行时矩阵）**：在「引擎」下拉面板里勾选 `runtimes.lock.json` 中的多个引擎版本即可并排启动，画面上用「主」「2」…标出各条 lane。每个版本拥有独立的 WASM 实例、画布和能力模拟器；勾选「镜像输入」时，键盘按键、语音唤醒和场景脚本会同步镜像到所有画布。
-- **键盘操作**：画布逻辑尺寸为 `480×352`，直接用电脑键盘控制（`↑`/`↓` 切换焦点、`Enter` 确认、`Backspace` 返回）。当鼠标焦点在控制台输入框内时，按键不会传给应用，避免打字时误触。
-- **两种预览画面模式**：
-  - **效果预览 · 黑底（默认）**：`480×352` 纯黑底画布。
-  - **真机模拟 · 竖屏**：对齐 AIUI Studio 的 `480×640` 竖屏尺寸，将 `480×352` 画布居中（上下各留 144px），把黑色背景转为透明后叠加在环境背景图上，可选「绝对黑暗 / 室内明亮 / 夜晚弱光」三种环境光。预览模式与环境光会记入截图指纹，不同模式下的截图基线互不混用。
-- **热重载**：服务端监听源码目录变更并通过 SSE 通知页面自动重载（含防抖合并）；正在跑自动化场景时不会打断。
-- **场景运行与主舞台录屏**：下拉框会自动列出应用自带场景（`<app>/e2e/scenarios/`）和内置 `smoke` 场景，右侧 Inspector 的「场景」页实时展示每一步的执行耗时、失败原因和截图。点击「开始录制」或勾选场景条上的「录屏」可将主舞台画面直接导出为无声 MP4 视频（可直接放进 PPT；若浏览器不支持 MP4 则降级为 WebM 并提示需转码），不录制鼠标和浏览器边框，也无需系统录屏权限。
-- **右侧 Inspector 与启动预检**：「启动 / 日志 / 网络 / 能力 / 场景 / 工程 / 证据」七页分别查看启动状态、引擎日志、网络请求（含脱敏后的请求/响应头与正文）、能力调用记录、场景结果、工程文件与 `run.json` 导出；顶部输入框筛选当前页。窄屏（≤1260px）时 Inspector 默认收起，展开后浮在右侧。若应用缺少 `app.json` / `app.js` 或注册了不存在的页面，启动前会直接报错提示。
+- **按键只发给画面**：光标在输入框里时按键不会传给应用，打字不会误触。画布的逻辑尺寸是 `480×352`。
+- **两种视图**：「效果预览 · 黑底」就是 `480×352` 的原始画布。「真机模拟 · 竖屏」按 AIUI Studio 的 `480×640` 排版，把黑色当成透明叠在环境背景上，环境可选「绝对黑暗 / 室内明亮 / 夜晚弱光」，用来检查文字在亮环境下是否看得清（见[原理与边界](#原理与边界)）。视图和环境会记进截图指纹，不同视图的截图基线互不混用。
+- **热重载不打断测试**：场景还在跑时改了源码，会等场景跑完再重载。连续保存会合并成一次。
+- **录屏**：点「开始录制」或勾选场景条上的「录屏」，会把画面录成无声 MP4，浏览器不支持时退成 WebM。不录鼠标和浏览器边框，也不需要系统录屏权限，可以直接放进 PPT。
+- **窄屏**：窗口宽度不超过 1260px 时 Inspector 默认收起，点顶栏右侧的按钮展开。
+- **主题只改工作台外观**：浅色 / 深色不影响应用画布的像素，也不影响截图基线。
 
-工作台在页面全局暴露了 `window.__inklab` 自动化接口（可在浏览器 DevTools 控制台或通过 CDP 调用）：
+源码目录会按 `.aixignore` 规则打成内存快照再交给引擎；`.aix` 则直接读包里的文件。
+
+## 模拟硬件
+
+应用在眼镜上调用的硬件，在 InkLab 里都换成了可控的模拟器。每一样都能在「能力控制」卡片里手动操作；在场景脚本里则通过 `caps.<名字>` 控制，并用 `caps.<名字>.calls` 检查应用调用了什么。
+
+| 能力 | 工作台卡片 | 脚本里常用 |
+| --- | --- | --- |
+| 语音识别与播报 | 语音识别、焦点 · 播报 | `caps.speech.say(text)`、`endTurn()`、`nomatch()`、`abortMidway()`；`spokenTexts` 是应用播报过的文字 |
+| 传感器 / IMU | 传感器 / IMU | `caps.sensors.playTrace(name, samples)`、`injectError(name, …)`；`lab.imu.play('轨迹#段落')` |
+| 相机 | 相机 | `caps.media.loadPhoto(path)`、`failNext({ kind })`、`setTakePhotoDelayMs(ms)` |
+| 蓝牙 | 蓝牙 | `caps.bluetooth.emitNotification(…)`、`playNotificationTrace(…)`、`failNext(op)` |
+| 网络 | 网络 | `caps.net.offline()` / `online()`、`block()`、`delay()`、`status()`、`allowExternal()` |
+| 大模型 | 没有卡片：用配置和 URL 参数 `?llm=` | `caps.llm.failNext({ kind })`；场景里声明 `llm` 模式 |
+| 电池 | 电池 | `caps.battery.setStatus({ level, charging })` |
+
+接口定义在 `lib/caps/contract.mjs`，是从引擎胶水代码逆向整理、再逐项实测出来的。
+
+**模拟器故意保留真机的毛病。** 真机上会出的问题，模拟器不会替应用兜住，否则测试就测不出来：
+
+- 语音识别可能中途被掐断（`abortMidway()`）。`say()` 注入最终结果后**不会**自动结束会话：`continuous: true` 的应用自己决定什么时候关，`continuous: false` 的单轮识别要由脚本调用 `endTurn()` 收尾。
+- 真机上 TTS 的播放结束回调不可靠，所以模拟器默认**不**自动通知「播报结束」。
+- 传感器权限被拒或读取出错后，故障一直保持，直到显式清除。真机上被拒后重试也一样失败。
+- 拍照默认延迟 1.5 秒，接近真机快门加处理的耗时。
+- 蓝牙必须先完成 GATT 连接并调用 `startNotifications()` 订阅，注入的通知才会生效；没订阅就注入会直接报错。
+
+### 语音
+
+「语音识别」卡片里的按钮对应识别过程中的各种情况：「说完一句」（最终结果）、「说到一半」（中间结果）、「本轮收尾」、「没听清」、「没人说话」、「被掐断」。脚本里：
 
 ```js
-__inklab.view                      // 主舞台的 InkView 实例
-__inklab.caps.speech.calls         // 语音能力的调用记录（用于检查应用是否真正发起了识别或播报）
-__inklab.bluetooth.calls           // 蓝牙扫描、连接、订阅、读写的调用记录
-__inklab.press('Enter')            // 发送按键：含参数校验 + 手动触发渲染帧 + 同步到并排画布
-__inklab.wake('inklab')            // 触发语音唤醒
-await __inklab.runScenario('onboarding-goal')  // 运行指定场景，返回结构化结果
-await __inklab.runScenario('onboarding-goal', { record: true }) // 运行场景并自动下载录屏
-__inklab.snapshot('name')          // 截取当前主舞台画面（返回含 dataUrl 的对象）
-__inklab.snapshotMatrix('name')    // 为当前勾选的所有引擎版本分别截图
-__inklab.setPreviewMode('optical') // 切换到 480×640 真机模拟竖屏模式
-__inklab.setLighting('night-low-light') // 切换环境光背景
-__inklab.exportRun()               // 导出完整测试证据（源码哈希、引擎锁、时间线、网络日志、截图）
-__inklab.conformanceReport()       // 导出探针应用（cap-probe-app）的能力支持度报告
-__inklab.startRecording({ name: 'free-demo' }) // 手动开始主舞台录屏（30fps）
-await __inklab.stopRecording()     // 结束录屏并下载视频文件
+caps.speech.say('我想增肌');                    // 最终结果
+caps.speech.say('我想', { interim: true });     // 中间结果，通常只上屏，不该触发执行
+caps.speech.endTurn();                          // 单轮识别（continuous: false）要显式收尾
+caps.speech.spokenTexts;                        // 应用播报过的文字
 ```
 
-> ⚠️ **不要绕过 `__inklab.press()` 直接调用 `view.dispatchInput(...)`**：当浏览器标签页处于后台或窗口被遮挡时，浏览器的 `requestAnimationFrame` 会暂停，直接调用 `dispatchInput` 只有第一次按键会生效。`__inklab.press()` 会在每次按键后主动调用 `view.render()` 推进画面（原理详见 [runtime-notes.md](runtime-notes.md)《焦点与帧》）。
+旧版识别接口和 0.18 以后的流式接口都支持。纯音频采集用本地空音轨和模拟 PCM 帧，不申请麦克风权限。识别结果靠注入文字，所以这里验证的是应用行为，不能证明真实声音的识别质量。
 
-## 硬件与系统能力模拟
+### 传感器与 IMU 轨迹
 
-接口定义见 `lib/caps/contract.mjs`（从引擎胶水代码逆向整理并实测验证）。
+「传感器 / IMU」卡片模拟的是**眼镜自身**的传感器：加速度计、陀螺仪、磁力计、姿态。可以：
 
-| 模块 | 模拟能力 | 主要控制功能 |
-| --- | --- | --- |
-| `caps/sensors.mjs` | 加速度计 / 陀螺仪 / 磁力计 / 姿态 | **传感器轨迹（IMU trace）回放**、静置数据、故障注入；支持一键加载内置深蹲轨迹或导入 JSON |
-| `caps/battery.mjs` | 电池（BatteryManager） | 修改电量、充电状态、剩余时间，并向应用推送 `statuschange` 事件 |
-| `caps/speech.mjs` | 语音识别（ASR）+ 语音合成（TTS） | **注入识别文本**（实时中间结果 `interim` / 最终结果 `final`）、**结束单轮识别**（`endTurn`）、模拟中途异常中断（`abort`）、无匹配（`nomatch`），以及通过 `spokenTexts` 检查应用的播报内容 |
-| `caps/media.mjs` | 相机与媒体 | 默认按队列返回预设图片；手动调试可切换为电脑真实摄像头；支持注入拍照延迟及权限拒绝/设备不存在/超时三种故障 |
-| `caps/bluetooth.mjs` | 蓝牙（Web Bluetooth / BLE） | 模拟设备扫描、GATT 连接、Service/Characteristic 读写、特征值通知推送、断连与高频数据流回放；手动调试可切换为电脑真实蓝牙 |
-| `caps/llm.mjs` | 大模型（LanguageModel） | 在线（`live`）/ 录制（`record`）/ **离线回放（`replay`）** 三种模式，支持注入超时与格式错误响应 |
-| `caps/net.mjs` | 网络请求 | **默认拦截外部域名请求**（见下）、模拟断网、按 URL 拦截/加延迟/改状态码、记录脱敏后的请求与响应日志 |
-| `caps/probe.mjs` | 调用探针 | 排查未知能力时，原样记录引擎传入的所有调用参数 |
-| `caps/index.mjs` | 能力组装与事件桥 | 将模拟器组装注入引擎，并在事件派发参数不合法时立即抛出明确错误 |
+- 点「深蹲 ×6」加载内置的合成深蹲轨迹；
+- 导入一段 JSON 轨迹；
+- 在「工程轨迹」一行选工程里存的轨迹（可以只选其中一段），点「播放」；
+- 注入权限被拒、读取故障。
 
-**模拟器设计原则：刻意复现真机的异常行为，而不是只模拟理想状态**。真机上常见的坑如果被模拟器掩盖，测试就会失去意义：
-
-- **语音识别（ASR）**：支持模拟中途自行 `abort`。调用 `say()` 注入最终文本后**不会**自动关闭识别会话（在 `continuous: true` 持续识别模式下，何时关闭会话由应用自己决定）；对于 `continuous: false` 的单轮识别应用，脚本需显式调用 `endTurn()` 触发收尾。
-- **语音合成（TTS）**：真机上 TTS 的播放结束回调（`onend`）并不稳定，因此模拟器默认**不**自动派发 `synthesisEnd`。
-- **传感器故障不会自愈**：注入传感器权限拒绝或读取故障后，故障状态会一直保持，直到显式调用 `clear`（真机上权限被拒后重试同样会继续失败）。
-- **拍照延迟**：模拟拍照默认带有 1.5 秒延迟，还原真机快门与图像处理耗时。
-- **蓝牙通知强校验**：应用必须先完成 GATT 连接并调用 `startNotifications()` 订阅特征，之后注入通知才会生效；未订阅直接注入会立即报错，不会替应用掩盖遗漏的协议步骤。
-
-### 传感器（IMU）轨迹回放
-
-在工作台「传感」页的「传感器 / IMU」卡片选好传感器后，可点「深蹲 ×6」加载内置的合成深蹲轨迹，或导入以下任一格式的 JSON（将在应用下次调用传感器 `start` 时生效，采样时间戳严格按轨迹内的相对毫秒数 `t` 递增，不受浏览器定时器延迟影响）：
+轨迹 JSON 可以是样本数组，也可以带传感器名和速度：
 
 ```json
 [{ "t": 0, "x": 0, "y": 9.81, "z": 0 }]
@@ -119,11 +130,9 @@ await __inklab.stopRecording()     // 结束录屏并下载视频文件
 { "sensor": "accelerometer", "speed": 1, "samples": [{ "t": 0, "x": 0, "y": 9.81, "z": 0 }] }
 ```
 
-回放按样本自己的时间戳排在绝对时刻上（轨迹起点 + `t / speed`）：计时器晚到不会累积，60Hz 的轨迹在浏览器里就是 60Hz。
+`t` 是相对毫秒。回放按每个样本自己的时间排在绝对时刻上（起点 + `t / speed`），浏览器计时器晚到不会累积，60Hz 的轨迹放出来就是 60Hz。导入的轨迹在应用下次 `start` 传感器时生效。
 
-**工程轨迹**：放在被测工程的 `e2e/traces/<名字>.json`，多传感器、带段落（格式见 `lib/imu-trace.mjs`）。真机「模拟 IMU · 录制」
-和 `inklab-device imu-guide` 录下来的就存在这里（见 [docs/device.md](device.md#模拟-imu)）。传感器卡片「工程轨迹」一行选一条（可选段落）点「播放」；
-场景里：
+**工程轨迹**放在被测工程的 `e2e/traces/<名字>.json`，包含多个传感器、带段落和标记，格式见 `lib/imu-trace.mjs`。在真机上用「模拟 IMU · 录制」或 `inklab-device imu-guide` 录下来的就存在这里（见 [USB 连真机 · 模拟 IMU](device.md#模拟-imu)）。在场景里放一段：
 
 ```js
 { do: () => lab.imu.play('guided-20261117-1030#nod-normal'), label: '放真机录的正常点头' },
@@ -131,45 +140,55 @@ await __inklab.stopRecording()     // 结束录屏并下载视频文件
 { expect: async () => countNods() === (await lab.imu.segment('guided-20261117-1030#nod-normal')).expect.nod },
 ```
 
-`lab.imu.play(ref, { mode: 'load', loop, speed, sensors, from, to, rebase })`：`mode: 'load'` 只给之后新开的会话；`from` / `to` 按轨迹时间（ms）截一段；`rebase: true` 把姿态改成相对这一段第一条读数的转动。真机姿态在 Android 世界坐标里（Z 朝上），模拟器的静置姿态是单位四元数：应用已经以静置姿态取了「正前方」再切到真机轨迹时要加 `rebase`，否则算出的转头角度是乱的。`lab.imu.list()` 列出工程轨迹，
-`lab.imu.load(id)` 读整条，`lab.imu.summary(id)` 看各传感器样本数和实际频率。
+`lab.imu.play(ref, options)` 的选项：
 
-**传感器档案**：`inklab.config.json` 写 `"sensorProfile": "rokid-rg1"`，模拟器的传感器就按 RG1 实测来：没有磁力计（`start` 回
-`OperationError`），加速度计 / 陀螺仪请求 60Hz 给约 101Hz，姿态请求 10 或 30Hz 给约 50Hz。缺省 `generic`（按请求频率给，四个传感器都有）。
+| 选项 | 作用 |
+| --- | --- |
+| `mode: 'load'` | 不切正在跑的传感器，只给之后新开的会话 |
+| `loop`、`speed` | 循环、倍速 |
+| `sensors` | 只放其中几个传感器 |
+| `from`、`to` | 按轨迹时间（毫秒）截一段 |
+| `rebase: true` | 把姿态改成相对这一段第一条读数的转动 |
 
-> 注：这张卡片模拟的是**眼镜自身**的传感器。如果是外接蓝牙设备（如运动手环/腕表）通过 BLE 发来的六轴数据，请使用「设备」页「蓝牙」卡片里的「导入 trace」或脚本中的 `playNotificationTrace(...)`。
+什么时候要 `rebase`：真机录的姿态在 Android 世界坐标里（Z 朝上），而模拟器的静置姿态是单位四元数。应用已经用静置姿态定好「正前方」、再切到真机轨迹时，不加 `rebase` 算出来的转头角度是乱的。
 
-### 相机：自动化用模拟图片，手动调试可用电脑摄像头
+另外还有 `lab.imu.list()`（列出工程轨迹）、`lab.imu.load(id)`（读整条）、`lab.imu.segment('名字#段落')`（读一段及其标注）、`lab.imu.summary(id)`（各传感器的样本数和实际频率）。
 
-- **模拟图片（默认，`camera=mock`）**：自动化测试（`npm run e2e`）强制使用此模式。脚本通过 `caps.media.loadPhoto('assets/example.png')`（从被测应用的静态目录读取，文件不存在立即报错）或 `queuePhotos()` 指定下次 `takePhoto()` 返回的图片，也可直接传入 `Uint8Array` 字节。
-- **电脑摄像头（手动，`?camera=computer`）**：在工作台下拉框切换到「电脑摄像头」时，浏览器会弹窗请求摄像头权限。当你在画面中按键触发应用调用 `takePhoto()` 时，会通过电脑摄像头抓拍一帧并返回 `{data, mimeType}`，拍完立即关闭摄像头指示灯。
+**传感器档案**：在应用的 `inklab.config.json` 里写 `"sensorProfile": "rokid-rg1"`，模拟器就按 RG1 实测的样子提供传感器：没有磁力计（`start` 返回 `OperationError`）；加速度计、陀螺仪请求 60Hz 时给约 101Hz；姿态请求 10 或 30Hz 时给约 50Hz。默认是 `generic`：四个传感器都有，按请求的频率给。
 
-### 蓝牙：自动化用模拟设备，手动调试可用电脑蓝牙
+> 外接蓝牙设备（手环、腕表等）发来的六轴数据不归这张卡管，用「蓝牙」卡片的「导入 trace」或脚本里的 `playNotificationTrace(...)`。
 
-`ink_web` 引擎直接读取浏览器的 `navigator.bluetooth` 对象（底层原理见 [runtime-notes.md](runtime-notes.md)）：
+### 相机
 
-- **模拟蓝牙（默认，`bluetooth=mock`）**：自动化测试强制使用此模式。默认内置一个 `InkLab Heart Rate` 心率设备；脚本可通过 `caps.bluetooth.replaceDevices([...])` 自定义设备与服务树、用 `failNext('gatt.connect', ...)` 模拟连接失败、用 `playNotificationTrace(...)` 高频回放通知数据流。
-- **电脑蓝牙（手动，`?bluetooth=computer`）**：恢复使用浏览器原生的 Web Bluetooth 连接真实外设。如果因跨引擎桥接丢失了浏览器的用户点击手势导致无法弹出设备选择框，点击控制台上的「选择真实设备」按钮即可继续配对。页面热重载时会自动断开已有蓝牙连接。
+- **模拟图片**（默认，`camera=mock`）：自动化测试一律用这个模式。`caps.media.loadPhoto('assets/example.png')` 从被测应用目录读图（文件不存在立即报错），也可以传 `Uint8Array`。装进来的图会排队，之后每次 `takePhoto()` 依次取一张；队列空了就一直返回最后一张。`enqueuePhoto(name)` 把已装过的图再排一次，`usePhoto(name)` 从现在起固定返回这一张。`failNext({ kind: 'denied' | 'notfound' | 'timeout' })` 让下一次拍照失败。
+- **电脑摄像头**（手动，`?camera=computer`）：在「相机」卡片里切到「电脑摄像头」，浏览器会请求摄像头权限。应用调用 `takePhoto()` 时抓一帧返回，拍完立刻关掉摄像头。
+
+### 蓝牙
+
+引擎直接读浏览器的 `navigator.bluetooth`，InkLab 在这一层换成模拟设备（原理见 [runtime-notes.md](runtime-notes.md)）。
+
+- **模拟蓝牙**（默认，`bluetooth=mock`）：自动化测试一律用这个模式。默认有一台 `InkLab Heart Rate` 心率设备。`caps.bluetooth.replaceDevices([...])` 换成自己的设备和服务树，`failNext('gatt.connect', ...)` 让下一次连接失败，`playNotificationTrace(...)` 高频回放通知数据。
+- **电脑蓝牙**（手动，`?bluetooth=computer`）：用浏览器原生 Web Bluetooth 连真实外设。如果设备选择框没弹出来（跨引擎调用时丢了用户点击手势），点「蓝牙」卡片里的「选择真实设备」继续配对。页面热重载时会断开已有连接。
 
 ```js
-// 应用连接并订阅后，推送一帧心率通知（88 BPM）
+// 应用连接并订阅后，推一帧心率通知（88 BPM）
 __inklab.bluetooth.emitNotification({
   serviceUuid: 'heart_rate',
   characteristicUuid: 'heart_rate_measurement',
 }, [0x00, 88]);
 
-// 按固定间隔（如 20ms / 50Hz）或按样本时间戳 { t, value } 连续回放蓝牙通知
+// 按固定间隔（20ms，即 50Hz）连续回放；也可以每帧写 { t, value } 按时间戳回放
 const trace = __inklab.bluetooth.playNotificationTrace({
   serviceUuid: '6f1d0000-8f5b-4c7e-9a21-4a19f2b4c001',
   characteristicUuid: '6f1d0001-8f5b-4c7e-9a21-4a19f2b4c001',
   frames: [[1, 2, 3], [4, 5, 6]],
   intervalMs: 20,
 });
-trace.stats(); // 查看状态：running/completed/failed、已发帧数 emittedFrames、循环次数 loops
+trace.stats();   // running / completed / failed、已发帧数 emittedFrames、循环次数 loops
 trace.stop();
 ```
 
-在工作台导入蓝牙通知 JSON 时，可以传十六进制字符串数组，或带设备与时间轴的对象（所有帧要么统一使用 `intervalMs`，要么全部提供递增的相对毫秒 `t`）：
+在工作台「导入 trace」时，可以给十六进制字符串数组，或者带设备和时间轴的对象。所有帧要么统一用 `intervalMs`，要么都写递增的相对毫秒 `t`：
 
 ```json
 {
@@ -183,95 +202,63 @@ trace.stop();
 }
 ```
 
-### 眼镜画面与环境光模拟：哪些是真的，哪些是模拟
+### 网络与外部请求
 
-- **真实执行的部分**：应用的 `.ink` 界面解析、JS 逻辑（QuickJS）和画布绘制（Skia/WASM）全部由真实的 `ink_web` 引擎执行。
-- **软件模拟的部分**：由于真实 AR 眼镜的光学镜片上**黑色像素不发光（即呈透明状态）**，人眼会透过黑色区域看到现实环境。切换到「真机模拟 · 竖屏」并选择环境光（绝对黑暗 / 室内明亮 / 夜晚弱光）后，InkLab 会通过算法把画布上的黑色背景抠成透明，叠加在模拟的环境背景图上（具体算法见 [runtime-notes.md](runtime-notes.md)）。
-- **用途与局限**：它能帮你在电脑上提前发现「文字颜色太暗，在白天亮背景下看不清」等界面对比度问题；但软件合成无法还原真实眼镜光机的物理亮度、镜片色偏与人眼适应效果，最终视觉效果仍需戴上真机确认。
+**外部请求默认挡下。** 本地跑的是应用的真实源码，很多应用一启动就会请求线上域名（拉天气、上报埋点），这时测试还没开始。为了不误碰线上服务，所有跟工作台不同源的请求默认不发出去，直接给应用返回 HTTP 503，网络日志里标成 `decision: 'external-stub'`。
 
-### 自带的引擎能力探针应用（`fixtures/cap-probe-app`）
+需要放行时：
 
-仓库内置的 `fixtures/cap-probe-app` 是一个用来给不同版本引擎做“API 能力体检”的探针应用。它会逐项调用 AIUI 0.17 的接口并给出明确结论（`supported` 完全支持 / `partial` 部分支持 / `unsupported` 不支持 / `contract-drift` 行为与约定不符），涵盖：
+- 命令行加 `--allow-external <规则>`，可以重复写；
+- 或者在应用目录的 `inklab.config.json` 里写 `{"allowExternal": ["https://tonedom.com/*", "wss://tonedom.com/*"]}`；
+- 或者在工作台「网络」卡片里添加放行项（只在这个窗口会话里有效）；
+- 脚本里用 `caps.net.allowExternal('域名或子串')`。
 
-- 电池状态（`BatteryManager`）初始读取与变更事件；
-- 本地文件系统（OPFS）创建、写入、读取与删除；
-- 空间感知（World Awareness）、姿态传感器（`AbsoluteOrientationSensor`）与合成点头手势（`nod`）；
-- 媒体采集接口（`mediaDevices` / `MediaRecorder` / `ImageCapture`）；
-- 语音合成 `speechSynthesis.speak()` 与独立 `synthesize()` 任务；
-- `table`、`timed-text`、`streamdown` 流式渲染与空源 `video` 组件生命周期。
+命令行和配置文件的规则会合并，启动应用前就生效，e2e 也读同一份。规则是普通字符串时按 URL 子串匹配；含 `*` 时按整条 URL 通配。大模型在 `live` / `record` 模式下，配置的接口地址自动放行。
 
-检查单个引擎版本可运行：`npm run e2e -- fixtures/cap-probe-app --scenario aiui-017-conformance --runtime <id> --no-video`；对比多个引擎版本的支持差异可运行 `npm run matrix`。
+要整个关掉拦截：URL 加 `?netguard=0`、取消「网络」卡片里的「挡外域」，或者调用 `caps.net.guardExternal(false)`。某个请求莫名返回 503 时，用 `caps.net.wouldStubExternal(url)` 查它是不是被拦了。
 
-### 默认拦截外部网络请求（`caps/net.mjs` 的 `guardExternal`）
-
-本地工作台运行的是应用的真实源码，而许多应用在启动阶段就会自动请求线上生产域名（例如拉取天气或上报埋点），此时测试脚本甚至还没开始执行。为了**防止本地测试意外请求或污染线上生产服务器**，InkLab 默认开启了外部请求防火墙：
-
-- **默认拦截行为**：凡是目标地址与本地工作台（`127.0.0.1`）不同源的外部请求，默认**一律拦截，不发往外网，直接向应用返回 HTTP 503**，并在网络日志中标记为 `decision: 'external-stub'`。你可以在测试中检查 `caps.net.requests`，确保没有任何标记为 `decision: 'pass'` 的外部请求。
-- **规则优先级**：全局断网 > 按 URL 拦截（`block`）> 场景脚本显式配置的 Mock 响应（`status()`）> **外部请求拦截** > 真实发出请求。也就是说，你在测试脚本里专门写过 Mock 的接口会正常返回 Mock 数据，未 Mock 的外部接口才会被拦截返回 503。
-- **白名单放行**：调用 `caps.net.allowExternal('域名或子串')` 可放行指定域名。此外，开启大模型在线或录制模式（LLM `live` / `record`）时，所配置的 LLM 接口地址会自动放行。
-- **关闭拦截**：URL 加上 `?netguard=0`、取消勾选控制台「网络」面板中的**挡外域**，或调用 `caps.net.guardExternal(false)`。
-- **排障查询**：如果发现某个请求意外返回 503，可调用 `caps.net.wouldStubExternal(url)` 检查它是否命中了外部请求拦截。
-
-## 编写测试场景
+**模拟网络故障**（脚本里）：
 
 ```js
-const driver = createDriver({ view, screenshot });
-const result = await driver.runScenario([
-  { activate: true },                       // 按 Enter 确认，并等待页面切换冷却结束
-  { pressMany: ['ArrowDown', 5] },
-  { shot: 'settings' },
-  { expect: (ctx) => ctx.someCheck() || '焦点未落到设备连接项' },
-]);
+caps.net.offline();                               // 整体断网：关掉已有 WebSocket，中止进行中的下载
+caps.net.online();                                // 恢复：只放开新连接，重连由应用负责
+caps.net.block('/api/weather');                   // 按 URL 拦截
+caps.net.delay('/api/', 3000);                    // 加延迟
+caps.net.status('/api/score', 500, { body: '' }); // 返回指定状态码
+caps.net.requests;                                // 请求日志（已脱敏）
 ```
 
-驱动层内置了实测得出的按键时序规则（详见 [runtime-notes.md](runtime-notes.md)）：**连续按方向键时自动推进事件虚拟时间戳**（跨过应用约 700ms 的同向按键防抖），**按确认键切换页面后真实等待 ≥1.3s**（跨过应用约 1.2s 的新页面激活冷却期）。
+规则优先级：整体断网 > `block` > `status` > 外部请求拦截 > 真实发出。也就是说，脚本里专门写过 `status` 的接口照常拿到模拟响应，没写过的外部接口才被拦成 503。
 
-应用自己的测试场景放在应用仓库的 `<app>/e2e/scenarios/*.mjs` 下（工作台下拉框与 `npm run e2e` 会自动扫描加载）；与特定应用无关的通用场景放在 InkLab 的 `scenarios/` 下：
+WebSocket 和 `fetch` 共用放行和拦截规则，但不模拟 HTTP 状态码、`rewrite` 和延迟。WS 日志记录连接、打开、关闭、关闭码和收发消息数，不记消息正文。`caps.net.networkState()` 返回当前的 WS 连接和下载进度。工作台自己拉源码的请求和热重载推送不受断网影响。
 
-```js
-export default {
-  id: 'onboarding-goal', title: '走完新手引导到目标页', summary: '……',
-  build({ caps }) { return [ /* 步骤列表 */ ]; },   // 通过 caps 检查应用实际调用了哪些硬件能力
-};
-```
+**清下载缓存**：「网络」卡片里的「清下载缓存并重载」会在重新装载引擎前清掉这个玩家的浏览器 OPFS，并重建引擎内存里的文件系统。应用存在 OPFS 里的其他文件（比如进度）也会一起清掉；localStorage 里的设备身份保留。浏览器 OPFS 和 Ink 自己的文件系统是两层，不要用浏览器 OPFS 的文件列表判断 Ink 里下载完没有，要看应用画面和网络日志里的完成记录。
 
-编写断言时，应优先检查**应用实际调用了哪些宿主能力**（`caps.*.calls`）或比对画面截图，不要依赖引擎控制台里的 `onLoad` 耗时日志（该日志为随机采样打印，不可靠，详见 [runtime-notes.md](runtime-notes.md)）。
+### 大模型（LLM）
 
-## 运行 e2e 测试
+大模型请求是浏览器里的引擎自己发的，格式是标准 OpenAI `chat/completions`。InkLab 只告诉引擎接口地址、请求头和默认模型名（见 `lib/caps/llm.mjs`）。
 
-**InkLab 作为通用测试运行器，测试场景、录制数据和截图基线均保存在被测应用自己的仓库中**：
+**配置**（环境变量优先）：
 
-```
-<app>/e2e/
-  scenarios/*.mjs      # 测试场景脚本
-  cassettes/*.json     # 大模型（LLM）响应录制文件（不含请求头与 API Key，可安全提交进 git）
-  baselines/           # 参考截图基线：<场景id>/<截图名>.png 及同名 .json 指纹信息
-  report/              # 本次测试运行报告与录屏产物（不入库）
-```
+- 环境变量 `INKLAB_LLM_ENDPOINT`（完整的 `chat/completions` 地址）、`INKLAB_LLM_API_KEY`（或用 `INKLAB_LLM_API_KEY_FILE` 指向密钥文件）、`INKLAB_LLM_MODEL`；
+- 或者在 InkLab 仓库根目录建 `llm.local.json`（已被 git 忽略），写 `endpoint`、`model`、`apiKeyFile`。
 
-```bash
-npm run e2e -- <app>                                 # 在无头 Chrome 中运行该应用的全部场景
-npm run e2e -- <app> --accept                        # 将本次运行的截图保存为新的参考基线
-npm run e2e -- <app> --scenario onboarding-goal      # 只运行指定场景
-npm run e2e -- <app> --no-video                      # 关闭场景自动录屏（默认开启）
-npm run e2e -- <app> --headed                        # 打开可见浏览器窗口运行，方便排障
-npm run e2e -- <app> --runtime latest               # 指定引擎：通道名 latest / daily / studio，或具体 lane id
-npm run e2e -- <app> --preview optical \
-  --lighting indoor-bright                           # 在真机模拟竖屏 + 室内明亮背景模式下运行
-npm run e2e -- dist/pkg.aix --scenario smoke \
-  --runtime <lane> --report-dir /tmp/pkg-smoke       # 直接对打包好的 .aix 文件跑冒烟测试
+不配置也能用：应用会收到「模型不可用」，走自己的离线逻辑。
 
-# 跨多个引擎版本（及三种环境光背景）运行同一场景并汇总差异报告
-npm run matrix -- fixtures/cap-probe-app \
-  --scenario aiui-017-conformance \
-  --runtime <lane>,<lane> --all-lighting
-```
+**四种模式**（URL 参数 `?llm=off|live|record|replay`）：
 
-**运行流程**：自动在随机端口启动本地服务 → 强制将相机与蓝牙设为模拟模式（`camera=mock`、`bluetooth=mock`）→ 启动系统 Chrome（`--headless=new`，固定 `--force-device-scale-factor=2` 保证不同机器截图分辨率一致）→ 每个场景前执行一次完整的页面跳转（`Page.navigate`，彻底隔离上一个场景的 WASM 与蓝牙状态）→ 执行步骤并比对截图基线 → 生成 `<app>/e2e/report/last-run.json`。只要任一步骤失败、截图差异超标、或参考截图指纹过期（`stale`），命令即以非零退出码结束。
+| 模式 | 行为 |
+| --- | --- |
+| `off` | 没有模型，应用走离线降级。未配置接口时的默认值。 |
+| `live` | 请求真实模型。已配置接口时的默认值。 |
+| `record` | 请求真实模型，并把响应录进 `e2e/cassettes/` |
+| `replay` | 离线回放录好的响应，不联网，不需要 API Key |
 
-### 按场景配置 LLM 模式：一次测试同时覆盖联网与离线场景
+**故障注入**：`caps.llm.failNext({ kind: 'timeout' | 'http' | 'malformed', ... })` 让下一次请求超时、报错或返回格式错误的内容（优先于回放），用来测「模型配了，但这次请求出问题」的处理。
 
-不同的测试场景可能需要不同的 LLM 模式（例如有的测大模型正常回复，有的测未配模型时的离线降级）。每个场景可以在脚本中单独声明所需的 `llm` 配置，测试运行器会在进入该场景前自动切换：
+**思考型模型太慢**：有些模型默认开长思考，首字要 15 秒以上，会让应用 8 秒超时。在 `llm.local.json` 里加 `"requestDefaults": {"enable_thinking": false}`，工作台会把引擎的请求转到本地 `http://localhost:<端口>/llm/chat/completions`，补上引擎没传的默认字段。这里用 `localhost` 而不是 `127.0.0.1`，是因为引擎会挡掉和页面完全同源的请求地址（见 [runtime-notes.md](runtime-notes.md)）。
+
+**按场景切换模式**：不同场景可以要不同的模式，比如一个测模型正常回复，一个测没配模型时的降级。在场景里声明 `llm`，跑到这个场景前自动切换：
 
 ```js
 // <app>/e2e/scenarios/21-llm-fc-intent.mjs
@@ -284,38 +271,126 @@ export default {
 
 | 字段 | 含义 |
 | --- | --- |
-| `mode` | `off`（无模型）/ `live`（请求真实模型）/ `record`（请求真实模型并录制）/ `replay`（离线回放录制文件）。不填则使用全局默认模式（存在 `e2e/cassettes/default.json` 时默认 `replay`，否则为 `off`） |
-| `cassette` | `replay` 或 `record` 模式下读写的录制文件路径（相对于被测应用根目录） |
-| `model` | **固定录制匹配用的模型名**（推荐统一填 `'inklab-cassette'`）。匹配录制文件时会计算请求体哈希（内含 `model` 字段）；固定此名称后，其他开发者或 CI 机器无需配置相同的模型环境变量也能正常命中回放 |
+| `mode` | `off` / `live` / `record` / `replay`。不写就用全局默认：存在 `e2e/cassettes/default.json` 时是 `replay`，否则是 `off` |
+| `cassette` | `record` / `replay` 读写的录制文件，相对于被测应用根目录 |
+| `model` | 固定写一个模型名，推荐 `'inklab-cassette'`。匹配录制时会对请求体（含 `model` 字段）算哈希；写死名字后，别的开发者和 CI 不用配同样的模型也能命中回放 |
 
-**优先级**：命令行传入的 `--llm` 参数最高 > 场景脚本内的 `llm` 声明 > 全局默认模式。录制与回放只需三步：
+优先级：命令行 `--llm` > 场景里的 `llm` > 全局默认。录制和回放三步：
 
 ```bash
-# ① 录制：连接真实大模型跑一次，自动将响应写入场景指定的 cassette 文件（并自动把模型名替换为场景声明的 model）
-npm run e2e -- <app> --scenario llm-fc-intent --llm record
-# ② 验证回放：直接重跑（自动使用离线 replay，不联网、无需 API Key）
-npm run e2e -- <app> --scenario llm-fc-intent
-# ③ 将生成的 cassette JSON 提交到 git 仓库，后续 CI 即可离线稳定运行
+# ① 录制：连真实模型跑一次，响应写进场景指定的 cassette（模型名会换成场景声明的 model）
+inklab-e2e <app> --scenario llm-fc-intent --llm record
+# ② 验证回放：直接再跑一次，自动用 replay，不联网
+inklab-e2e <app> --scenario llm-fc-intent
+# ③ 把生成的 cassette JSON 提交进 git，CI 就能离线稳定地跑
 ```
 
-- **测试报告统计**：`e2e/report/last-run.json` 中的 `llm.online` / `llm.offline` 会分别列出在线与离线场景，`llm.outcomes` 汇总所有请求的结果计数（`replay-hit` 命中回放 / `replay-miss` 未命中 / `fault:*` 注入故障 / `live:2xx` 真实请求成功）。
-- **请求哈希别名（`aliases`）**：如果同一个场景因机器性能差异导致请求内容出现微小但合理的波动（例如计时器显示 30 秒 vs 35 秒，导致算出的 16 位请求哈希不同），可在录制条目中添加 `aliases: ["另一个16位哈希"]`，让它们共用同一条录制响应。InkLab 不做模糊匹配，未登记的哈希一律视为 `replay-miss`。
-- **`--llm live` 真模型抽检**：传入 `--llm live` 可将所有场景强制切换为调用真实大模型（会发起真实网络请求，且模型回复措辞不固定，请勿放入常规 CI）。场景脚本中可通过 `caps.llm.mode` 判断当前是否为 `replay`，在 `live` 模式下只检查接口是否正常往返，不检查具体字面文案。
+- 录制文件不含请求头和 API Key，可以放心提交。
+- 报告 `e2e/report/last-run.json` 里，`llm.online` / `llm.offline` 分别列出联网和离线的场景，`llm.outcomes` 统计每种结果（`replay-hit` 命中、`replay-miss` 没命中、`fault:*` 注入的故障、`live:2xx` 真实请求成功）。
+- 同一个场景在不同机器上请求内容有合理的小波动（比如计时器显示 30 秒和 35 秒，16 位请求哈希就不同）时，在录制条目里加 `aliases: ["另一个16位哈希"]` 共用一条响应。InkLab 不做模糊匹配，没登记的哈希一律算 `replay-miss`。
+- `--llm live` 把所有场景强制切到真实模型。模型措辞每次不同，不要放进常规 CI；场景里可以看 `caps.llm.mode`，在 `live` 时只检查请求有没有正常往返，不比对具体文案。
 
-## LLM 怎么接
+### 电池
 
-**大模型请求由浏览器内的 `ink_web` 引擎自己发起**（标准 OpenAI `chat/completions` 格式；InkLab 宿主只负责向引擎提供接口地址、请求头和默认模型名，详见 `lib/caps/llm.mjs`）：
+「电池」卡片可以改电量、充电状态和剩余时间，并向应用推送 `statuschange` 事件（AIUI 0.17 起支持）。脚本里用 `caps.battery.setStatus({ level: 0.15, charging: false })`，`level` 取 0 到 1。
 
-- **配置方式**（环境变量优先）：设置环境变量 `INKLAB_LLM_ENDPOINT`（完整的 `chat/completions` URL）、`INKLAB_LLM_API_KEY`（或指向密钥文件的 `INKLAB_LLM_API_KEY_FILE`）、`INKLAB_LLM_MODEL`；或者在仓库根目录创建本地文件 `llm.local.json`（已被 git 忽略，包含 `endpoint`、`model`、`apiKeyFile`）。
-- **补充默认请求参数（`requestDefaults`）**：部分思考型大模型默认开启长思考，首字耗时超过 15 秒，会导致应用 8 秒超时失败。可在 `llm.local.json` 中配置 `requestDefaults: {"enable_thinking": false}`：配置后，工作台会将引擎请求转发到本地服务的 `http://localhost:<port>/llm/chat/completions` 路由，自动补上引擎未传的默认字段（之所以用 `localhost` 而不是 `127.0.0.1`，是因为引擎内部屏蔽了与页面完全同源的请求地址，详见 [runtime-notes.md](runtime-notes.md)）。
-- **四种运行模式**（URL 参数 `?llm=off|live|record|replay`）：未配置接口地址时默认为 `off`（引擎判定大模型不可用，触发应用的离线降级提示）；已配置时默认为 `live`。`record` 模式会将真实响应录制到 `e2e/cassettes/`；`replay` 模式直接读取录制文件离线回放。
-- **故障注入**：调用 `caps.llm.failNext({ kind: 'timeout' | 'http' | 'malformed', ... })` 可让下一次大模型请求发生指定故障（优先级高于录制回放），专门用于测试「大模型已配置，但本次请求超时或报错」的异常处理路径。
+### 能力探针应用
 
-## 截图基线
+`fixtures/cap-probe-app` 用来给不同版本的引擎做「API 体检」。它逐项调用 AIUI 0.17 的接口，给出结论：`supported`（支持）、`partial`（部分支持）、`unsupported`（不支持）、`contract-drift`（行为和约定不符）。覆盖电池、本地文件系统（OPFS）、空间感知与姿态传感器和点头手势、媒体采集、语音合成、`table` / `timed-text` / `streamdown` 流式渲染、空源 `video` 组件的生命周期。
 
-`lib/shots.mjs` 负责像素级截图比对，`lib/stamp.mjs` 负责计算基线指纹（包含源码内容哈希、引擎版本、WASM 哈希、画布尺寸、预览与环境光模式、场景 id、能力夹具 id；不包含 git commit、时间和分支名）。当应用源码或引擎版本发生变化而参考截图未更新时，比对结果会标记为 `stale`（过期）并报错，防止拿旧截图冒充新代码的测试通过证据。
+```bash
+inklab-e2e fixtures/cap-probe-app --scenario aiui-017-conformance --runtime <lane> --no-video   # 检查一个引擎
+inklab-matrix fixtures/cap-probe-app --scenario aiui-017-conformance --runtime <lane>,<lane>    # 对比几个引擎
+```
 
-默认对整张截图进行严格的全像素比对。如果页面上有倒计时、实时波形等必然变化的动态区域，可以在该步截图上单独配置容差（`tolerance`）或忽略区域（`ignoreRegions`，忽略区域不计入差异像素分母）：
+## 写场景
+
+场景是一个小 JS 模块，描述「按什么键、等多久、截什么图、检查什么」。应用自己的场景放在应用仓库的 `<app>/e2e/scenarios/*.mjs`，工作台的场景下拉框和 `inklab-e2e` 都会自动加载。跟具体应用无关的通用场景放在 InkLab 的 `scenarios/`（目前只有 `smoke`）。
+
+最小的例子：
+
+```js
+// <app>/e2e/scenarios/open-settings.mjs
+export default {
+  id: 'open-settings',
+  title: '打开设置页',
+  summary: '从首页往下移 5 次，进入设置，截图。',
+  build({ caps, lab }) {
+    return [
+      { wait: 800, label: '等首屏' },
+      { pressMany: ['ArrowDown', 5] },
+      { activate: true, label: '进入设置' },
+      { shot: 'settings' },
+      { expect: () => lab.pagesLoaded().includes('pages/settings/index') || '没有进入设置页' },
+    ];
+  },
+};
+```
+
+每一步写一种动作，可以加 `label` 让报告更好读：
+
+| 步骤 | 作用 |
+| --- | --- |
+| `{ press: 'ArrowDown' }` | 按一次键：`ArrowUp` / `ArrowDown` / `ArrowLeft` / `ArrowRight` / `Enter` / `Backspace` 等 |
+| `{ pressMany: ['ArrowDown', 5] }` | 同一个键连按几次 |
+| `{ activate: true }` | 按 `Enter` 确认，并等新页面的冷却期过去 |
+| `{ back: true }` | 返回 |
+| `{ wait: 1000 }` | 等待毫秒数 |
+| `{ wake: true }` | 语音唤醒；也可以写唤醒词 `{ wake: '你好' }` |
+| `{ shot: 'name' }` | 截图，并和基线比对；动态区域的写法见[截图基线](#截图基线) |
+| `{ expect: () => … }` | 检查：返回 `true` 算通过，返回字符串就是失败原因 |
+| `{ do: async () => … }` | 执行任意代码，比如注入语音、放轨迹、切断网络 |
+
+`build()` 拿到的参数：
+
+| 参数 | 内容 |
+| --- | --- |
+| `caps` | 各硬件模拟器，见[模拟硬件](#模拟硬件) |
+| `lab` | 观测工具：`pagesLoaded()` 到过的页面、`frameHash()` 当前画面指纹、`framePixels()` / `compareFrame()` 取像素和比对、`logTail(n)` 最近的引擎日志（排障用）、`imu` 工程轨迹 |
+| `view` | 引擎实例 |
+| `players` | 多玩家时的每个玩家，见[多玩家](#多玩家) |
+
+几条经验：
+
+- **断言优先看应用实际调用了什么**（`caps.*.calls`）或比截图。不要依赖引擎日志里的 `onLoad` 耗时：那是采样打印的，方法跑得快就不打（见 [runtime-notes.md](runtime-notes.md)）。
+- **按键时序已经处理好**：应用对同方向的连续按键有约 700ms 防抖，脚本连按方向键时驱动层会自动推进事件时间戳；确认进新页面后，应用有约 1.2 秒冷却期，`activate` 会真实等待 1.3 秒以上。脚本里不用自己加等待。
+- 场景模块还可以写 `llm` 字段，按场景切换大模型模式，见[大模型（LLM）](#大模型llm)。
+
+## 跑自动化测试
+
+InkLab 只是测试运行器，测试资产都放在被测应用自己的仓库里：
+
+```text
+<app>/e2e/
+  scenarios/*.mjs      # 场景
+  cassettes/*.json     # 大模型录制（不含请求头和 API Key，可以提交）
+  baselines/           # 截图基线：<场景id>/<截图名>.png，以及同名 .json 指纹
+  traces/*.json        # IMU 轨迹（可选）
+  report/              # 每次运行的报告和录屏（不要提交）
+```
+
+```bash
+inklab-e2e <app>                                   # 在无头 Chrome 里跑全部场景
+inklab-e2e <app> --scenario open-settings          # 只跑一个场景
+inklab-e2e <app> --accept                          # 把这次的截图存成新基线
+inklab-e2e <app> --no-video                        # 不录屏（默认录）
+inklab-e2e <app> --headed                          # 打开可见的浏览器窗口，方便排障
+inklab-e2e <app> --runtime daily                   # 指定引擎：latest / daily / studio 或具体 lane id
+inklab-e2e <app> --preview optical --lighting indoor-bright   # 真机竖屏视图 + 室内明亮环境
+inklab-e2e dist/pkg.aix --scenario smoke --report-dir /tmp/pkg-smoke   # 直接测发布包
+```
+
+（在 InkLab 仓库里也可以写成 `npm run e2e -- <app> …`。）
+
+跑一次大致是：在随机端口起本地服务 → 相机和蓝牙强制用模拟模式 → 启动系统 Chrome（`--headless=new`，固定 2 倍像素，保证不同机器截图一致）→ 每个场景前重新加载页面，隔离上一个场景的引擎和蓝牙状态 → 执行步骤、比对截图 → 写出 `<app>/e2e/report/last-run.json`。
+
+任一步失败、截图差异超标，或者基线指纹过期（`stale`），命令都以非零退出码结束，可以直接接 CI。
+
+### 截图基线
+
+`--accept` 存下的基线带一个指纹：源码内容哈希、引擎版本、WASM 哈希、画布尺寸、视图和环境、场景 id、能力夹具 id（不含 git commit、时间和分支名）。源码或引擎变了而基线没更新时，比对结果标成 `stale` 并报错，防止拿旧截图冒充新代码的通过证据。换了引擎后看到 `stale` 是提醒你在新引擎上重录，不是故障。
+
+默认整张图逐像素严格比对。页面上有倒计时、实时波形这类必然变化的区域时，给这一张截图单独设容差（`tolerance`）或忽略区域（`ignoreRegions`，忽略的像素不计入差异比例）：
 
 ```js
 {
@@ -326,78 +401,86 @@ npm run e2e -- <app> --scenario llm-fc-intent
       ignoreRegions: [{ x: 20, y: 490, w: 920, h: 145 }],
     },
   },
-  label: '实时计次页面截图',
+  label: '实时计次页截图',
 }
 ```
 
-## 引擎版本会漂
-
-引擎会持续发新版：npm 上的 `@yodaos-pkg/ink` 用 `latest` 标签发正式版、`daily` 标签发每日构建；AIUI Studio 与 Craft 网页里嵌的构建更旧，随站点发版才更新。为了保证测试结果可复现，`runtimes.lock.json` 中的每一条版本记录（lane）都是**只读锁定的**：一旦记下 id、来源、版本号和 SHA-256 哈希，就绝不覆盖修改。
-
-「最新」交给**通道名**：`latest`（版本最高的正式版）、`daily`（版本最高的任意构建）、`studio`（Studio 网页版来源里版本最高的）。通道名每次按本机已缓存的 lane 现算，同号版本优先 npm 官方包。**默认引擎就是 `latest`**，与列表顺序无关。项目要跟真机对齐（例如真机已经是每日构建）时，在应用目录的 `inklab.config.json` 里写 `"runtime": "daily"`，工作台与 e2e 都以它为默认；优先级从高到低是 `--runtime` / `?runtimes=`、`INKLAB_RUNTIME`、`inklab.config.json` 的 `runtime`、`latest`。项目脚本里写通道名，引擎更新后不用改项目；截图基线的指纹里带着引擎构建号，引擎一换基线就会标成 `stale`，这是提醒你在新引擎上重录，不是故障。要复现某次旧结果时再写具体 lane id。
-
-`inklab`、`inklab-e2e`、`inklab-matrix` 启动时会查一次 npm（一天最多一次，时间记在 `.engine/update-check.json`），`latest` 或 `daily` 指向的版本还没有 lane 就自动下载并追加。查不了只打一行警告，照常用本机已有的引擎。`INKLAB_NO_UPDATE=1` 关掉检查（CI 想完全离线时用），`INKLAB_UPDATE=force` 立即检查，`INKLAB_NPM_REGISTRY` 改用镜像。
+### 多个引擎 × 多种环境一起跑
 
 ```bash
-npm run engine                    # 检查官方站点、将新版本追加到清单（首次运行会创建清单），并下载本地缺失的引擎文件
-npm run engine -- <lane>          # 同样先检查站点，但只下载指定的引擎版本（可写多个）
-npm run engine -- --check         # 仅离线校验本地已下载文件与清单哈希是否一致（不联网）
-npm run engine -- --discover      # 只读预览：查看线上有哪些新版本可追加，不写任何文件（无新版本返回 0，发现新版本返回 2，检查失败返回 1）
-npm run engine -- --list          # 不联网：列出本机的 lane、哪些已缓存，以及 latest / daily / studio 各指向哪条
+inklab-matrix fixtures/cap-probe-app --scenario aiui-017-conformance --runtime <lane>,<lane> --all-lighting
 ```
 
-1. **自动发现新版本**：先查 npm（`@yodaos-pkg/ink` 的 `latest`、`daily` 标签；版本还没有 lane 就下载 tarball、按 `integrity` 校验后整包解进 `.engine/runtimes/npm-ink-<版本>/`，lane 里记下 `tarballUrl` 与 `tarballIntegrity`，缓存丢了可以重取），再查 Craft（`https://js.rokid.com/craft`）和 AIUI Studio（`https://aiui.rokid.com/`）两个站点（也可通过 `--site=[<名字>=]<url>` 只查指定的站点，此时不查 npm）。站点构建靠比对胶水 JS 文件的 SHA-256 判断是否已收录；若没有新构建，只会拉取轻量的入口 JS 文件对比，不会重复下载体积庞大的 WASM。
-2. **只追加、不覆盖**：发现未收录的新构建时，脚本会下载 WASM 计算哈希并提取版本号，按 `<平台>-<版本>` 命名（如 `npm-ink-0.20.0`、`craft-0.19.0-daily.202609230326`；站点构建同名但文件内容不同时自动附上哈希前 8 位），追加到 `runtimes.lock.json` 末尾并缓存在 `.engine/`。你可以随时修改条目的 `label`，不影响缓存识别与截图基线指纹；改 `id` 会让项目里写死的这个 id 失效，所以项目里尽量写通道名。
-3. **容错与格式校验**：某个来源无法访问时仅打印警告，继续检查其余来源并按现有清单下载。手写修改 `runtimes.lock.json` 时如果出现 JSON 语法错误，会直接报错并指出文件位置。
+同一个场景在几个引擎版本（以及三种环境光）上各跑一遍，汇总出差异报告。
 
-自动发现仅支持带有独立胶水 JS 文件的引擎构建。如果遇到站点改版或其他来源的构建，可以**手动添加一条引擎记录**：
+## 引擎版本
 
-1. 在浏览器打开目标站点，通过开发者工具 Network 面板找到 `ink_web_bg-*.wasm` 以及加载它的胶水 JS 文件（内含 `createInkView` 和 `initInk`），记下两者的完整 URL。
-2. 下载这两个文件，用 `shasum -a 256` 计算各自的 SHA-256 哈希。
-3. 从 WASM 文件中提取引擎版本号（输出的 `version` 和 `build` 分别填入清单的 `engineVersion` 和 `engineBuild`，非 daily 版本 `build` 为 `null`）：
+引擎会不断发新版：npm 上的 `@yodaos-pkg/ink` 用 `latest` 标签发正式版、`daily` 标签发每日构建；AIUI Studio 和 Craft 网页里嵌的构建更旧，随网站更新。
+
+- **lane**：本机记下的一个引擎构建，比如 `npm-ink-0.21.0`。记在 `runtimes.lock.json` 里，带来源、版本号和 SHA-256。lane 一旦记下就**不再修改**，保证结果可以复现。
+- **通道**：指向「最新的那条 lane」的名字，每次按本机已缓存的 lane 现算：`latest`（版本最高的正式版）、`daily`（版本最高的任意构建）、`studio`（Studio 网页来源里版本最高的）。同号版本优先用 npm 官方包。
+
+**默认用 `latest`。** 项目要跟真机对齐（比如真机已经是每日构建）时，在应用目录的 `inklab.config.json` 里写 `"runtime": "daily"`，工作台和 e2e 都会以它为默认。优先级从高到低：`--runtime` / `?runtimes=`、环境变量 `INKLAB_RUNTIME`、`inklab.config.json` 的 `runtime`、`latest`。
+
+项目脚本里写通道名，引擎更新后不用改项目；要复现某次旧结果时才写具体的 lane id。
+
+**并排对比**：在预览左上角「引擎」菜单里勾选几个引擎，或者打开 `?runtimes=<id>,<id>`，画面上用「主」「2」……标出各条 lane。每条 lane 有独立的引擎、画布和能力模拟器；勾选「镜像输入」后，按键、语音唤醒和场景脚本会同步发给所有画布。
+
+**自动更新**：`inklab`、`inklab-e2e`、`inklab-matrix` 启动时会查一次 npm（一天最多一次，记在 `.engine/update-check.json`），`latest` 或 `daily` 有新版本就自动下载并记成新 lane。查不了只打一行警告，照常用本机已有的引擎。`INKLAB_NO_UPDATE=1` 关掉检查（CI 想完全离线时用），`INKLAB_UPDATE=force` 立即检查，`INKLAB_NPM_REGISTRY` 换镜像。
+
+```bash
+inklab-engine                  # 检查 npm 和官方站点，新版本记进清单（第一次会创建清单），并下载缺的文件
+inklab-engine <lane>           # 同样先检查，但只下载指定的 lane（可以写多个）
+inklab-engine --list           # 不联网：列出本机的 lane、哪些已缓存，以及三个通道各指向哪条
+inklab-engine --check          # 不联网：校验本地文件和清单里的哈希是否一致
+inklab-engine --discover       # 只看线上有没有新版本，不写文件（没有返回 0，有返回 2，检查失败返回 1）
+```
+
+<details>
+<summary>新版本是怎么发现和记录的</summary>
+
+1. **发现**：先查 npm（`@yodaos-pkg/ink` 的 `latest`、`daily` 标签）。版本还没有 lane 时下载 tarball，按 `integrity` 校验后整包解到 `.engine/runtimes/npm-ink-<版本>/`，lane 里记下 `tarballUrl` 和 `tarballIntegrity`，缓存丢了可以重新下载。再查 Craft（`https://js.rokid.com/craft`）和 AIUI Studio（`https://aiui.rokid.com/`）两个站点；用 `--site=[<名字>=]<url>` 可以只查指定站点，这时不查 npm。站点构建靠比对胶水 JS 的 SHA-256 判断是否已经记过，没有新构建时只拉轻量的入口 JS，不会重复下载很大的 WASM。
+2. **只追加，不覆盖**：发现新构建时下载 WASM、算哈希、提取版本号，按 `<来源>-<版本>` 命名（比如 `npm-ink-0.20.0`、`craft-0.19.0-daily.202609230326`；站点构建同名但内容不同时自动加上哈希前 8 位），追加到 `runtimes.lock.json` 末尾，文件缓存在 `.engine/`。条目的 `label` 可以随便改，不影响缓存识别和截图指纹；改 `id` 会让项目里写死的这个 id 失效，所以项目里尽量写通道名。
+3. **容错**：某个来源访问不了只打警告，继续检查其他来源，并按现有清单下载。手改 `runtimes.lock.json` 出现 JSON 语法错误时，会直接报错并指出位置。
+
+</details>
+
+<details>
+<summary>手动添加一个引擎版本</summary>
+
+自动发现只认带独立胶水 JS 的构建。遇到站点改版或其他来源的构建，可以手动加一条：
+
+1. 在浏览器打开目标站点，用开发者工具的 Network 面板找到 `ink_web_bg-*.wasm`，以及加载它的胶水 JS（里面有 `createInkView` 和 `initInk`），记下两者的完整 URL。
+2. 下载这两个文件，用 `shasum -a 256` 分别算出 SHA-256。
+3. 从 WASM 里提取引擎版本号（输出的 `version`、`build` 分别填进清单的 `engineVersion`、`engineBuild`；非 daily 版本 `build` 是 `null`）：
 
    ```bash
    node --input-type=module -e "import { readFileSync } from 'node:fs'; import { extractEngineVersion } from './lib/node/engine-version.mjs'; console.log(extractEngineVersion(readFileSync(process.argv[1])))" engine.wasm
    ```
 
-4. 在 `runtimes.lock.json` 数组中新增一条记录，字段顺序为 `id`、`label`、`channel`、`cacheDir`、`source`、`fetchedAt`、`engineVersion`、`engineBuild`、`glueUrl`、`glueSha256`、`wasmUrl`、`wasmSha256`（其中 `id`、`engineVersion` 或 `engineBuild`、`glueSha256`、`wasmSha256` 为必填；需要自动下载时填 `glueUrl`、`wasmUrl`；如果源站链接已失效、仅使用本机已有缓存文件，可加上 `cacheOnly: true`；npm 包的版本不用手写，`inklab-engine` 会自动收录，它的条目用 `tarballUrl`、`tarballIntegrity` 代替 `glueUrl`、`wasmUrl`）。保存后运行 `npm run engine -- <新 lane id>` 验证即可。
+4. 在 `runtimes.lock.json` 数组里加一条，字段顺序为 `id`、`label`、`channel`、`cacheDir`、`source`、`fetchedAt`、`engineVersion`、`engineBuild`、`glueUrl`、`glueSha256`、`wasmUrl`、`wasmSha256`。其中 `id`、`engineVersion` 或 `engineBuild`、`glueSha256`、`wasmSha256` 必填；需要自动下载时填 `glueUrl`、`wasmUrl`；源站链接已失效、只用本机已有缓存时加 `cacheOnly: true`。npm 包的版本不用手写，`inklab-engine` 会自动收录，它的条目用 `tarballUrl`、`tarballIntegrity` 代替 `glueUrl`、`wasmUrl`。保存后运行 `inklab-engine <新 lane id>` 验证。
 
-## 测试边界
+</details>
 
-InkLab 使用 Rokid 发布的同一个渲染引擎，**它能替代在 AIUI Studio / Craft 网页里手动点测，但不能替代戴上真机测试**。光学显示效果、整机功耗、真实传感器物理精度、真实麦克风收音与 TTS 播报、真实蓝牙射频与固件稳定性，仍需在真实眼镜上验收。
+## 多玩家
 
-此外，当前浏览器宿主全局不提供 `BarcodeDetector`（`typeof` 为 `undefined`），但引擎向静态 `barcode` 模块注入了构造器；因此在模拟器中只能测到“取帧扫码但未识别出有效内容”的分支，二维码成功识别的完整链路仍需在 Craft 或真机上验证。
-
-## 联网与下载
-
-外域默认挡下；CLI 可重复加 `--allow-external <pattern>`，或者在应用目录放
-`inklab.config.json`：`{"allowExternal":["https://tonedom.com/*","wss://tonedom.com/*"]}`。
-CLI 与配置取并集，启动应用前就生效，e2e 一样读取。普通字符串匹配 URL 子串，含 `*` 时是整条 URL 的通配符匹配，跟原有 `net.allowExternal()` 一致。
-工作台「网络」可添加放行项、查看清单、切换「挡外域」；手动添加项在该窗口会话中保留。
-
-Ink 的 WebSocket 直接构造浏览器原生 WS，宿主在它外层包装，与 fetch 共用放行和 block 规则。
-整体断网关闭已有 WS 并中止未完成下载；恢复只放开新连接，重连由应用负责。
-WS 日志记录 connect/open/close、关闭码及收发消息数，不记消息正文；`caps.net.networkState()` 返回当前 WS 和下载字节进度。
-WS 不模拟 HTTP 状态码、rewrite 或延迟。宿主拉源码的 fetch 与热重载 SSE 不受断网注入影响。
-
-「清下载缓存」会在新 document 装载引擎前清该玩家的浏览器 OPFS，并重建引擎内存中的原生文件系统。
-它会同时清掉该玩家放在 OPFS 中的其他文件（如进度）；localStorage 中的设备身份保持不变。
-浏览器 OPFS 与 Ink 自己实现的文件系统是两层，不能用浏览器 OPFS 的文件列表断言 Ink 内部下载结果；请看应用画面和网络完成日志。
-
-## 多玩家场景
+测多人联机时，一个工作台里可以开 1 到 6 个互相独立的玩家：
 
 ```bash
-npm start -- <app> --players 2 --allow-external tonedom.com --open
-npm run e2e -- <app> --players 4 --allow-external tonedom.com --scenario multiplayer
-# 通用隔离探针，无需公网：
-npm run e2e -- fixtures/cap-probe-app --players 6 --scenario multiplayer --no-video
+inklab <app> --players 2 --allow-external tonedom.com --open
+inklab-e2e <app> --players 4 --allow-external tonedom.com --scenario multiplayer
+inklab-e2e fixtures/cap-probe-app --players 6 --scenario multiplayer --no-video   # 通用隔离探针，不需要公网
 ```
 
-也可在 URL 加 `?players=2`。每格是独立 iframe / WASM / 能力集 / 设备种子，浏览器 localStorage、sessionStorage、OPFS 按应用路径和玩家编号隔离；相同玩家独立窗口沿用身份。
-多玩家只选一个引擎；多 lane 仍用于同步输入的版本对比，不承担多人联机。点击画面、按 Alt+1…6 或在玩家画面聚焦时按 Tab（Shift+Tab 向前）切换当前玩家。只展开当前玩家的现有控制台，所有姿态、语音和故障控件都留在该玩家 realm。
-「单独窗口」转移当前席位，避免两个活实例同时使用同一设备身份；关窗口恢复原格。多玩家默认 1 倍画布、20fps，六人仍需看应用自身 CPU/内存开销。
+也可以在 URL 加 `?players=2`。
 
-场景仍放 `<app>/e2e/scenarios/`，沿用现有步骤结构：
+- **相互隔离**：每个玩家是独立的 iframe、引擎、能力模拟器和设备身份；浏览器 localStorage、sessionStorage、OPFS 按应用路径和玩家编号隔离。同一个玩家在独立窗口里打开，沿用原来的身份。
+- **只选一个引擎**：多玩家和多引擎并排二选一。多条 lane 是给同步输入做版本对比用的，不负责多人联机。
+- **切换当前玩家**：点玩家画面、按 `Alt+1`…`Alt+6`，或在玩家画面有焦点时按 `Tab`（`Shift+Tab` 往回）。按键、点头、摇头，以及展开的控制面板，都只作用于当前玩家。
+- **单独窗口**：把当前玩家移到新窗口，避免两个活实例共用同一个设备身份；关掉窗口后回到原来的格子。
+- **性能**：多玩家用 1 倍画布、约 20fps。每格显示 WebSocket 状态和下载进度。六个人同时跑时，还要看应用本身的 CPU 和内存开销。
+
+场景照样放在 `<app>/e2e/scenarios/`，用 `players` 分别驱动：
 
 ```js
 export default {
@@ -416,8 +499,55 @@ export default {
 };
 ```
 
-`players` 从 0 编号，每项有 `press`（含驱动器时间戳）、`sendInput`、`shot`、`caps`、`view`、`driver`、`lab`、`window`、`clearCache`。
-用 `caps.sensors` 控制该玩家姿态，`caps.net.offline()/online()` 控制该玩家网络。
-`shot` 自动加 `player-N--` 前缀并进入现有 e2e 截图报告；源码指纹加入玩家数，避免和单人基线混用。
-`window.__inklab.players` 在网格中同样可用；`selectPlayer(i)` 切换当前键盘目标，`press()` 只发给该玩家。
-主玩家仍承接现有场景报告、录屏和基线 API；e2e 网络汇总覆盖全部玩家。
+`players[i]` 从 0 编号，有 `press`、`sendInput`、`shot`、`caps`、`view`、`driver`、`lab`、`window`、`clearCache`。用 `players[i].caps.sensors` 控制这个玩家的姿态，`players[i].caps.net.offline()` / `online()` 控制它的网络。`shot` 会自动加上 `player-N--` 前缀，进入同一份截图报告；源码指纹里带上玩家数，不会和单人基线混用。主玩家仍然负责场景报告、录屏和基线；e2e 的网络汇总覆盖所有玩家。
+
+## 自动化接口
+
+工作台在页面上暴露了 `window.__inklab`，可以在浏览器 DevTools 控制台里用，也可以通过 CDP 调用（`inklab-e2e` 就是这么驱动的）：
+
+```js
+__inklab.press('Enter')                          // 按键：校验参数、手动推进一帧、同步到并排画布
+__inklab.wake('inklab')                          // 语音唤醒
+await __inklab.runScenario('open-settings')      // 跑一个场景，返回结构化结果
+await __inklab.runScenario('open-settings', { record: true })  // 跑场景并下载录屏
+__inklab.snapshot('name')                        // 截取当前画面（返回带 dataUrl 的对象）
+__inklab.snapshotMatrix('name')                  // 给勾选的每个引擎各截一张
+__inklab.setPreviewMode('optical')               // 切到 480×640 真机竖屏视图
+__inklab.setLighting('night-low-light')          // 切换环境光
+__inklab.startRecording({ name: 'free-demo' })   // 开始录屏（30fps）
+await __inklab.stopRecording()                   // 结束录屏并下载
+__inklab.exportRun()                             // 导出完整证据：源码哈希、引擎锁、时间线、网络日志、截图
+__inklab.conformanceReport()                     // 导出探针应用的能力支持度报告
+__inklab.view                                    // 主画面的引擎实例
+__inklab.caps.speech.calls                       // 语音能力的调用记录
+__inklab.bluetooth.calls                         // 蓝牙扫描、连接、订阅、读写记录
+__inklab.players                                 // 多玩家时的玩家列表；selectPlayer(i) 切换当前玩家
+```
+
+> ⚠️ **不要绕过 `__inklab.press()` 直接调 `view.dispatchInput(...)`**。标签页在后台或窗口被挡住时，浏览器会暂停渲染帧，直接调 `dispatchInput` 只有第一次按键生效。`__inklab.press()` 每次按键后会主动推进一帧（原理见 [runtime-notes.md](runtime-notes.md)《焦点与帧》）。
+
+## 原理与边界
+
+### InkLab 是怎么跑起来的
+
+Rokid 的 Craft 网页并不是服务端渲染：它把眼镜上的 Ink 运行环境（QuickJS 跑逻辑，Skia 画界面）编译成 WebAssembly（`ink_web`），放在浏览器里跑。只要给它一块 `<canvas>` 和一组硬件能力回调，它就能自己解析 `.ink` / `.js` / `app.json`、排版、处理按键。
+
+InkLab 加载的是同一个 `ink_web` 引擎，只是**把硬件和系统能力换成了可控的模拟器**。Craft 只能手动点着看，InkLab 可以用脚本注入语音、传感器、蓝牙和网络故障，所以能做自动化测试。
+
+```text
+应用源码目录 ──打包快照──▶ ink_web (WASM) ──渲染──▶ <canvas>
+ 或 .aix 包                    ▲
+            硬件与系统能力（语音 / 相机 / LLM / 传感器 / 网络）── InkLab 模拟器提供
+            navigator.bluetooth（模拟设备 / 电脑蓝牙）     ── 独立的浏览器桥接
+```
+
+### 哪些是真的，哪些是模拟的
+
+- **真的**：应用的 `.ink` 界面解析、JS 逻辑（QuickJS）和画布绘制（Skia / WASM），都由真实的 `ink_web` 引擎执行。
+- **模拟的**：AR 眼镜的镜片上，黑色像素不发光，等于透明，人眼会透过它看到现实环境。「真机模拟 · 竖屏」视图把画布上的黑色抠成透明，叠在环境背景图上（算法见 [runtime-notes.md](runtime-notes.md)）。它能帮你提前发现「文字太暗，白天看不清」这类对比度问题，但还原不了光机的真实亮度、镜片色偏和人眼适应，最终效果仍然要戴上真机看。
+
+### 测试边界
+
+InkLab 用的是 Rokid 发布的同一个渲染引擎，**它能替代在 AIUI Studio / Craft 网页里手动点测，但不能替代戴上真机测试**。光学显示、整机功耗、传感器的真实精度、麦克风收音和 TTS 播报、蓝牙射频和固件稳定性，仍需要在真实眼镜上验收（见 [USB 连真机](device.md)）。
+
+另外，浏览器里没有全局的 `BarcodeDetector`，引擎只给静态 `barcode` 模块注入了构造器。所以模拟器里只能测到「取帧扫码但没识别出内容」这条分支，扫码成功的完整流程要在 Craft 或真机上验证。

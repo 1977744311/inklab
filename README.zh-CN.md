@@ -17,6 +17,7 @@
   语音模拟同时支持旧识别接口与 0.18+ 引擎的流式接口。纯音频采集使用本地空音轨和模拟 PCM 帧，无需申请麦克风权限；识别结果仍由文字注入，用于验证应用行为，不能证明真实声音的识别质量。
 - **自动化场景与截图比对**——用简单的 JS 脚本编排按键、等待、截图和断言，可在浏览器里交互运行，也可在无头浏览器（Headless Chrome）中跑 CI。参考截图带有源码和引擎版本的指纹，一旦代码或引擎更新而截图未更新，会自动标记为过期（`stale`）。
 - **测试报告与录屏**——一键导出 `run.json`（包含源码版本、引擎哈希、执行时间线、网络日志、截图产物），或将应用画面直接录制成 MP4/WebM 视频。
+- **联网与多玩家**——外部请求默认挡下，防止本地调试误碰线上服务，需要时用 `--allow-external` 放行；一个工作台里最多开 6 个互相独立的玩家，测多人联机。见[使用指南](docs/guide.md#多玩家)。
 - **可选：USB 连真机联动**——一键（或每次保存）把调试包推到眼镜上并打开，回放真实触控板手势，实时投屏并显示应用日志，模拟器引擎自动对齐眼镜上的 Ink 版本，模拟器场景直接在真机上跑并生成截图对照；调试包里还能模拟 IMU（回放录好的轨迹、从工作台实时下发，或把真机读数录成工程轨迹，模拟器也放同一批文件），见 [docs/device.md](docs/device.md)。
 
 InkLab 用的是 Rokid 在 npm 上发布、并嵌在 AIUI Studio 与 Craft 网页里的同一个渲染引擎，因此**它能替代在 Craft 里手动点测，但不能替代最终的真机验收**：光学显示、功耗、真实传感器精度、麦克风收音和蓝牙信号仍需在真实眼镜上验证。
@@ -37,25 +38,13 @@ inklab fixtures/cap-probe-app --open
 
 浏览器会自动打开 <http://127.0.0.1:8788/>。`fixtures/cap-probe-app` 是仓库自带的示例探针应用，方便你直接体验所有功能；调试自己的应用时，把路径换成你的源码目录或 `.aix` 文件即可。想并排对比两个引擎版本，只需在预览左上角的「引擎」下拉面板里勾选两个版本，或在 URL 后加上 `?runtimes=<id>,<id>`（版本 id 用 `inklab-engine --list` 查看；也可以写通道名 `latest`、`daily`）。
 
+顶栏可以在三种模式之间切换：「模拟器」、「USB 真机」（操作连着的眼镜，切过去才会调用 ADB）、「真机 + 模拟器」（两边并排对照）。各页共用顶栏的浅色/深色切换。接下来做什么：
+
+- 第一次用：跟着[使用指南 · 五分钟上手](docs/guide.md#五分钟上手)走一遍。
+- 写自动化测试：[写场景](docs/guide.md#写场景)、[跑自动化测试](docs/guide.md#跑自动化测试)。
+- 连真眼镜：[USB 连真机](docs/device.md)。
+
 以上命令使用 v0.2.0。参与 InkLab 开发时请使用 `main`。[发布说明](https://github.com/1977744311/inklab/releases/tag/v0.2.0) · [贡献指南](CONTRIBUTING.md)
-
-## 公网下载与多玩家
-
-```bash
-npm start -- <应用> --allow-external tonedom.com --players 2 --open
-npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场景>
-```
-
-外域默认仍拦截。`--allow-external <pattern>` 可重复，和应用目录中可选的
-`inklab.config.json`（如 `{"allowExternal":["tonedom.com"]}`）合并；工作台「网络」可增添放行项、查看清单或切换外域闸。
-规则沿用 URL 子串 / `*` 通配符语义，同时控制 fetch 和 WebSocket；整体断网会关闭 WS、中止下载，恢复后由应用自行重连。网络日志包含判定、WS 开关与消息计数。
-
-`--players 1–6` 或 `?players=N` 启动独立玩家网格（与多引擎 lane 二选一）。点击画面、按 Alt+1…6 或在玩家画面聚焦时按 Tab 切换玩家。按键、点头、摇头及展开的控制台只作用于当前玩家。
-每人拥有独立引擎、能力与设备身份；浏览器 localStorage/OPFS 按应用和玩家隔离。「单独窗口」会转移该席位，关闭窗口后返回网格。
-多玩家使用 1 倍画布、约 20fps。每格显示 WS 状态和下载进度；可清当前或全部玩家的 OPFS 并重载（也会清掉应用写在 OPFS 内的其他文件，保留 localStorage 设备身份）。
-自动化场景的 `build({ players })` 可调用 `players[0].press('Enter')`、`players[1].shot('lobby')`、`players[i].caps.net.offline()`；详见[指南](docs/guide.md#多玩家场景)。
-
-顶部模式栏可在「模拟器」「USB 真机」「真机 + 模拟器」之间切换。切到「USB 真机」就启用真机（普通启动不碰 ADB），只连着一副眼镜时自动选上；`--device` 让它一启动就启用。桌面端并排显示同尺寸预览和真机设置。各页共用顶栏的浅色/暗色切换。联调时让两端进同一个应用房间，用模拟器的断网、恢复联网按钮复测重连。连接方法见 [USB 真机](docs/device.md)。
 
 ## 核心概念
 
@@ -76,6 +65,7 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 | 命令 | 作用 |
 | --- | --- |
 | `inklab <应用目录\|包.aix> [--port 8788] [--open] [--compare-with <目录\|包.aix>]` | 启动本地工作台。`--compare-with` 可对比另一份源码或 `.aix` 包的文件差异。 |
+| `inklab <应用目录> [--allow-external <规则>] [--players 1–6] [--device]` | `--allow-external` 放行外部请求（可重复，也可写在应用的 `inklab.config.json`）；`--players` 开多个独立玩家测联机；`--device` 一启动就启用真机。 |
 | `inklab-e2e <应用目录\|包.aix> [--scenario id] [--runtime latest\|daily\|<lane>] [--accept] [--headed]` | 在无头 Chrome 中运行场景并比对截图基线，结果写入 `<app>/e2e/report/last-run.json`。加上 `--accept` 会将本次截图保存为新基线。 |
 | `inklab-matrix <应用目录\|包.aix> [--scenario id] [--runtime a,b] [--all-lighting]` | 将同一场景跨多个引擎版本（及不同环境光背景）运行一遍，生成差异对比报告。 |
 | `inklab-engine [<lane>…] [--check\|--discover\|--list]` | 检查 npm（`@yodaos-pkg/ink` 的 `latest`、`daily` 标签）、AIUI Studio 和 Craft 上的引擎版本，把新版本记入 `runtimes.lock.json`，并下载 `.engine/` 中缺失的文件。`--check` 仅在本地校验文件完整性；`--discover` 仅预览线上是否有新版本（有新版本时退出码为 2）；`--list` 列出本机的 lane 和各通道当前指向哪条（`--list --json` 给脚本用）。 |
@@ -86,7 +76,7 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 | `npm run install-cli [-- --uninstall]` | 安装或卸载上面这些命令（见快速开始）。每个命令都支持 `--help` 和 `--version`。 |
 | `npm test` · `npm run lint` | 运行单元测试（无需联网和浏览器）· 运行 ESLint 代码检查（需先执行 `npm ci`）。 |
 
-大模型（LLM）配置是可选的：可通过环境变量 `INKLAB_LLM_ENDPOINT`、`INKLAB_LLM_API_KEY`、`INKLAB_LLM_MODEL` 配置，或在项目根目录创建本地文件 `llm.local.json`。未配置时，应用会收到“模型不可用”提示并走离线逻辑。详见[使用指南](docs/guide.md#llm-怎么接)。
+大模型（LLM）配置是可选的：可通过环境变量 `INKLAB_LLM_ENDPOINT`、`INKLAB_LLM_API_KEY`、`INKLAB_LLM_MODEL` 配置，或在项目根目录创建本地文件 `llm.local.json`。未配置时，应用会收到“模型不可用”提示并走离线逻辑。详见[使用指南](docs/guide.md#大模型llm)。
 
 ## 运行时引擎
 
@@ -99,7 +89,7 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 - `runtimes.lock.json`：首次下载引擎时自动生成的版本清单，记录每个引擎版本的来源、版本号和 SHA-256 哈希（首次下载时记录哈希，后续下载必须完全一致）。默认版本是本机已缓存版本里的 `latest` 通道，与列表顺序无关。项目可以在应用目录的 `inklab.config.json`（不进发布包）里写 `"runtime": "daily"`（通道名或 lane id）换成自己的默认；`INKLAB_RUNTIME=<lane 或通道名>` 可临时覆盖两者，`--runtime` / `?runtimes=` 优先级最高。
 - `.engine/`：存放下载好的引擎文件，每个版本一个子目录（可通过环境变量 `INKLAB_ENGINE_DIR` 修改存放位置）。下载过程会显示速度与剩余时间，单文件超过 30 秒无响应会自动重试（最多 3 次）。
 
-版本发现机制与手动添加引擎版本的方法见[使用指南](docs/guide.md#引擎版本会漂)。请确保在符合 Rokid 服务条款的前提下使用引擎。
+版本发现机制与手动添加引擎版本的方法见[使用指南](docs/guide.md#引擎版本)。请确保在符合 Rokid 服务条款的前提下使用引擎。
 
 ## 环境要求
 
@@ -124,9 +114,9 @@ npm run e2e -- <应用> --players 4 --allow-external tonedom.com --scenario <场
 
 ## 文档导航
 
-- [使用指南](docs/guide.md)——工作台功能、硬件模拟控制、编写测试场景、e2e 运行、LLM 录制回放、截图基线。
-- [USB 连真机](docs/device.md)——推送并打开调试包、触控板手势、实时投屏与日志、模拟 IMU 与轨迹录制、真机测试场景、应用端控制脚本约定。
-- [运行时实测笔记](docs/runtime-notes.md)——实测总结的引擎底层机制与时序规律，写自动化脚本前必读。
+- [使用指南](docs/guide.md)——从五分钟上手开始：工作台各区域、模拟硬件、写场景、跑自动化测试与截图基线、引擎版本、多玩家。
+- [USB 连真机](docs/device.md)——准备与上手、推送调试包、手势与投屏、无线调试、真机场景、模拟 IMU、应用设备适配器。
+- [运行时实测笔记](docs/runtime-notes.md)——实测总结的引擎底层机制与时序规律；脚本表现和预期对不上时先查这里。
 
 工作台界面与详细文档目前为中文；欢迎使用中文或英文提交 Issue 和 PR。
 

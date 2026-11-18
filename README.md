@@ -17,6 +17,7 @@
   Speech simulation supports both legacy recognition and the streaming transport used by 0.18+ engines. Audio-only capture uses an inert local track and mock PCM frames, without requesting microphone access; transcripts still come from injected text. This verifies application behavior, not acoustic recognition quality.
 - **Automated scenarios and screenshot baselines** — declarative JS scripts (key presses, waits, screenshots, assertions) run interactively in the browser or headless in CI. Baselines carry a fingerprint of the source and engine, so outdated baselines are flagged as `stale` instead of silently passing.
 - **Test reports and stage recording** — export `run.json` (source identity, engine hashes, timeline, network log, artifacts) and record the stage canvas as MP4/WebM.
+- **Networking and multiple players** — external requests are blocked by default so local debugging never hits production services; allow what you need with `--allow-external`. Run up to six independent players in one workbench to test multiplayer apps. See the [guide](docs/guide.md#多玩家).
 - **Optional: real glasses over USB** — push a debug build to the glasses and open it with one click (or on every save), replay real touchpad gestures, stream a live mirror and the app's logs, align the simulator engine with the glasses' Ink version, run simulator scenarios on the glasses with a side-by-side screenshot comparison, and mock the IMU in debug builds (replay a recorded trace, drive it live from the workbench, or record real readings as project traces the simulator plays too). See [docs/device.md](docs/device.md) (Chinese).
 
 InkLab runs the same rendering engine that Rokid publishes on npm and embeds in the AIUI Studio and Craft web previews, so **it replaces manual clicking in Craft, not final testing on physical glasses**: optics, power draw, real sensor accuracy, microphone acoustics and Bluetooth radio still require real hardware verification.
@@ -37,30 +38,15 @@ inklab fixtures/cap-probe-app --open
 
 The workbench opens at <http://127.0.0.1:8788/>. `fixtures/cap-probe-app` is a built-in probe app so you can try every feature right away; when you have your own app, pass its source directory or `.aix` file instead. To compare two engine versions side by side, tick two lanes in the **引擎** (engine) menu at the top left of the preview, or open `?runtimes=<id>,<id>` (lane ids are listed by `inklab-engine --list`; channel names such as `latest` and `daily` work too).
 
+The header switches between three modes: **模拟器** (simulator), **USB 真机** (drive the connected glasses; ADB is only called once you switch to it) and **真机 + 模拟器** (both side by side). All pages share the header's light/dark theme toggle. Where to go next:
+
+- First time: walk through the guide's [five-minute tour](docs/guide.md#五分钟上手).
+- Automated tests: [writing scenarios](docs/guide.md#写场景) and [running them](docs/guide.md#跑自动化测试).
+- Real glasses: [USB setup](docs/device.md).
+
 This quick start uses v0.2.0. For InkLab development, use `main`. [Release notes](https://github.com/1977744311/inklab/releases/tag/v0.2.0) · [Contributing](CONTRIBUTING.md)
 
-> The workbench UI is in Chinese for now.
-
-## Public networks and multiple players
-
-```bash
-npm start -- <app> --allow-external tonedom.com --players 2 --open
-npm run e2e -- <app> --players 4 --allow-external tonedom.com --scenario <id>
-```
-
-External traffic is still blocked by default. Repeat `--allow-external <pattern>` or add
-`{"allowExternal":["tonedom.com"]}` to the app's optional `inklab.config.json`; CLI and config lists are merged, including in e2e.
-The Network controls also show the list, add patterns and toggle the guard. Patterns retain URL substring / `*` glob semantics.
-Fetch and WebSocket share this policy; going offline closes sockets and aborts downloads. The app owns reconnection. Logs include decisions, WS open/close events and message counts.
-
-`--players 1–6` or `?players=N` opens independent players, instead of a runtime comparison.
-Click a tile, press Alt+1…6, or press Tab while a player view has focus to select a player. Keys, head gestures and the expanded controls target that player.
-Each player has its own engine, capabilities and device identity, with browser localStorage/OPFS scoped by app and player.
-Pop out transfers a seat to another window; closing it restores the tile. Multiplayer uses 1× canvases at about 20fps.
-Tiles show WS status and download progress. Clear one/all players' OPFS and reload to retest downloads; this also removes other files the app stores in OPFS, while preserving localStorage device identity.
-Scenario `build({ players })` receives `players[i].press(key)`, `.shot(name)` and `.caps`; see the [guide](docs/guide.md#多玩家场景).
-
-The header switches between **模拟器** (simulator), **USB 真机** (USB glasses), and **真机 + 模拟器** (side by side). Switching to **USB 真机** turns on device control (a plain start never calls ADB) and picks the glasses automatically when only one pair is connected; `--device` turns it on from the start. On desktop, the side-by-side view fits both previews at the same size beside the device controls. All pages share the header's light/dark theme toggle. Join the same app room on both sides and use the simulator's offline and online controls to exercise reconnects. See [USB setup](docs/device.md).
+> The workbench UI and the long-form guides are in Chinese for now.
 
 ## Core concepts
 
@@ -81,6 +67,7 @@ Your app's tests live in your app's repository; InkLab only provides the host ru
 | Command | What it does |
 | --- | --- |
 | `inklab <app-dir\|pkg.aix> [--port 8788] [--open] [--compare-with <dir\|pkg.aix>]` | Start the workbench. `--compare-with` shows a file-level diff against a second source or `.aix`. |
+| `inklab <app-dir> [--allow-external <pattern>] [--players 1–6] [--device]` | `--allow-external` lets matching external requests through (repeatable, or list them in the app's `inklab.config.json`); `--players` opens independent players for multiplayer testing; `--device` turns on device control from the start. |
 | `inklab-e2e <app-dir\|pkg.aix> [--scenario id] [--runtime latest\|daily\|<lane>] [--accept] [--headed]` | Run scenarios in headless Chrome, compare screenshot baselines, and write the report to `<app>/e2e/report/last-run.json`. `--accept` saves this run's screenshots as new baselines. |
 | `inklab-matrix <app-dir\|pkg.aix> [--scenario id] [--runtime a,b] [--all-lighting]` | Run one scenario across multiple runtime lanes (and ambient lighting backgrounds) and summarise differences. |
 | `inklab-engine [<lane>…] [--check\|--discover\|--list]` | Check npm (`@yodaos-pkg/ink`, tags `latest` and `daily`), AIUI Studio and Craft for engine builds, append new lanes to `runtimes.lock.json`, and download missing files into `.engine/`. `--check` verifies local files offline; `--discover` previews new builds without writing (exits with 2 if found); `--list` shows the lanes and where each channel points (`--list --json` for scripts). |
@@ -91,7 +78,7 @@ Your app's tests live in your app's repository; InkLab only provides the host ru
 | `npm run install-cli [-- --uninstall]` | Install or remove the commands above (see Quick start). Every command accepts `--help` and `--version`. |
 | `npm test` · `npm run lint` | Unit test suite (needs no external network or browser) · ESLint (`npm ci` first; devDependencies are for linting only). |
 
-LLM access is optional: set `INKLAB_LLM_ENDPOINT`, `INKLAB_LLM_API_KEY` and `INKLAB_LLM_MODEL`, or create an untracked `llm.local.json`. Without it, apps receive "model unavailable" and take their offline path. Details are in the [guide](docs/guide.md#llm-怎么接).
+LLM access is optional: set `INKLAB_LLM_ENDPOINT`, `INKLAB_LLM_API_KEY` and `INKLAB_LLM_MODEL`, or create an untracked `llm.local.json`. Without it, apps receive "model unavailable" and take their offline path. Details are in the [guide](docs/guide.md#大模型llm).
 
 ## The runtime engine
 
@@ -104,7 +91,7 @@ Both paths are local, git-ignored state and excluded from the npm package:
 - `runtimes.lock.json` is an append-only JSON array of lanes created on the first engine download. Each lane pins its source, version and SHA-256 hashes (recorded on first download; every later download must match). The default lane is the `latest` channel among the cached lanes, whatever the order. A project can choose its own default with `"runtime": "daily"` (a channel or lane id) in the app's `inklab.config.json`, which never goes into the package; `INKLAB_RUNTIME=<lane or channel>` overrides both for one run, and `--runtime` / `?runtimes=` override everything.
 - `.engine/` holds the downloaded binaries, one directory per lane (`INKLAB_ENGINE_DIR` overrides the path). Downloads show speed and ETA, abort after 30 s without data, and retry up to three times.
 
-See [the guide](docs/guide.md#引擎版本会漂) for discovery rules and how to register a lane by hand. You are responsible for using the engine in line with Rokid's terms.
+See [the guide](docs/guide.md#引擎版本) for discovery rules and how to register a lane by hand. You are responsible for using the engine in line with Rokid's terms.
 
 ## Requirements
 
@@ -131,9 +118,9 @@ See [the guide](docs/guide.md#引擎版本会漂) for discovery rules and how to
 
 The long-form documents are in Chinese for now; issues and pull requests in English or Chinese are both welcome.
 
-- [Guide](docs/guide.md) — workbench, host capabilities, scenarios, e2e, LLM modes, screenshot baselines.
-- [Real glasses over USB](docs/device.md) — push and open debug builds, touchpad gestures, live mirror and logs, mock IMU and trace recording, device scenarios, app-provided control scripts.
-- [Runtime field notes](docs/runtime-notes.md) — measured engine behaviour and timing rules; read before scripting an app.
+- [Guide](docs/guide.md) — starts with a five-minute tour, then the workbench layout, simulated hardware, writing scenarios, running tests and screenshot baselines, engine versions and multiplayer.
+- [Real glasses over USB](docs/device.md) — setup and first steps, pushing debug builds, gestures and mirroring, wireless debugging, device scenarios, mock IMU, app-provided control scripts.
+- [Runtime field notes](docs/runtime-notes.md) — measured engine behaviour and timing rules; check here first when a script does not behave as expected.
 
 ## Security
 

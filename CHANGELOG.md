@@ -7,6 +7,9 @@ All notable changes to this project are documented in this file. The format foll
 
 ### Added
 
+- `npm run install-cli` symlinks `inklab`, `inklab-e2e`, `inklab-engine`, `inklab-matrix` and `inklab-device` into
+  `~/.local/bin` (`--bin-dir` picks another directory, `--uninstall` removes them). The links point at the clone, so they
+  survive fnm/nvm Node switches and follow `git pull`. Every command answers `--help` and `--version`.
 - The USB glasses workbench works without `--device`: switching to **USB 真机** turns device control on (a plain start
   still never calls ADB), and the glasses are picked automatically when only one pair is connected, preferring Wi-Fi when the
   same pair is on USB and Wi-Fi, and reconnecting a remembered wireless address. `--device` still turns it on from the start.
@@ -19,7 +22,6 @@ All notable changes to this project are documented in this file. The format foll
 - `lab.imu.play(ref, { from, to, rebase })` cuts a trace by time, and `rebase: true` replays orientation relative to the
   slice's first reading. Recorded orientation is in Android's world frame, while the simulator's resting pose is the identity
   quaternion, so an app that already took its reference pose needs `rebase` to see the recorded head motion.
-
 - `inklab-engine` checks npm (`@yodaos-pkg/ink`, tags `latest` and `daily`) before the AIUI Studio and Craft sites.
   New versions become `npm-ink-<version>` lanes; the package tarball is verified against its `integrity` and
   extracted whole, and can be downloaded again if the cache is lost.
@@ -68,6 +70,9 @@ All notable changes to this project are documented in this file. The format foll
   folds the sidebar into collapsible sections that remember their state. Element ids and `window.__inklab` are unchanged.
 - The default lane is the `latest` channel among cached lanes instead of the first entry in `runtimes.lock.json`.
 - An unknown `--runtime` now lists the available lanes and the channel names.
+- `docs/guide.md` and `docs/device.md` were rewritten around tasks: each opens with a "where to look" table and a
+  five-minute walkthrough, explains the workbench by area, and moves implementation details to a closing section.
+  The READMEs fold the networking and multiplayer notes into the feature list and command table.
 
 ## [0.2.0] - 2026-11-09
 
