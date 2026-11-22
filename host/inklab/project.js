@@ -51,6 +51,24 @@ export async function loadProject() {
   return state.lastLoad;
 }
 
+/** Select a declared Widget in the same app/storage namespace as its Page. */
+export function previewEntry(files) {
+  const config = JSON.parse(files['app.json']);
+  const widgets = config.widgets || [];
+  const picker = document.getElementById('entry-picker');
+  picker.replaceChildren(new Option('应用首页', ''));
+  for (const widget of widgets) {
+    picker.add(new Option((widget.displayName || widget.path) + ' · ' + widget.family, widget.path));
+  }
+  const path = new URLSearchParams(location.search).get('widget') || '';
+  document.getElementById('entry-field').hidden = !widgets.length && !path;
+  picker.value = path;
+  if (!path) return { path: null, width: 480, height: 352 };
+  const widget = widgets.find(item => item.path === path);
+  if (!widget || !['1x1', '1x2'].includes(widget.family)) throw new Error('没有可预览的小组件：' + path);
+  return { path, family: widget.family, width: widget.family === '1x1' ? 239 : 480, height: 140 };
+}
+
 /**
  * 工程自带的 e2e 场景（<app>/e2e/scenarios/*.mjs）。带缓存戳重新 import，
  * 热重载后拿到的是编辑后的模块（场景内部的相对 import 仍走浏览器模块缓存——

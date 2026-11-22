@@ -37,7 +37,7 @@ import {
 } from '/host/inklab/recording.js';
 import { setLlm } from '/host/inklab/project.js';
 import { applyLightingProfile, applyPreviewMode } from '/host/inklab/stage.js';
-import { connectWatch, start } from '/host/inklab/lifecycle.js';
+import { connectWatch, selectPreviewEntry, start } from '/host/inklab/lifecycle.js';
 import { renderScenarioPicker, runScenario } from '/host/inklab/scenarios.js';
 import { wireConsole } from '/host/inklab/console.js';
 import { e2eShotReport, stampFor } from '/host/inklab/e2e.js';
@@ -57,7 +57,7 @@ Object.assign(state, {
     url.searchParams.set('clear-cache', '1');
     location.assign(url);
   },
-  press, sendInput, wake, snapshot, snapshotMatrix, runScenario, reload: start,
+  press, sendInput, wake, snapshot, snapshotMatrix, runScenario, reload: start, selectEntry: selectPreviewEntry,
   startRecording: startStageRecording, stopRecording: stopStageRecording,
   recordingFormats: () => stageRecorder.formats(),
   scenarioById: findScenario, stampFor, e2eShotReport, setLlm,

@@ -22,6 +22,8 @@
 
 InkLab runs the same rendering engine that Rokid publishes on npm and embeds in the AIUI Studio and Craft web previews, so **it replaces manual clicking in Craft, not final testing on physical glasses**: optics, power draw, real sensor accuracy, microphone acoustics and Bluetooth radio still require real hardware verification.
 
+Projects that declare Widgets expose an **入口** selector in the preview toolbar. Choose the home page or a 1×1 / 1×2 Widget. A Widget can also be opened with `?widget=widgets/name/index` or tested with `inklab-e2e <app> --widget widgets/name/index --scenario <id>`.
+
 ## Quick start
 
 You need Node.js 22 or later and Chrome. There are no npm runtime dependencies to install.

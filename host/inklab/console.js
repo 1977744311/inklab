@@ -29,7 +29,7 @@ import {
 } from '/host/inklab/recording.js';
 import { netGuardEnabled } from '/host/inklab/project.js';
 import { applyLightingProfile, applyPreviewMode, refreshRuntimeSummary } from '/host/inklab/stage.js';
-import { isStarting, start } from '/host/inklab/lifecycle.js';
+import { isStarting, selectPreviewEntry, start } from '/host/inklab/lifecycle.js';
 import { runScenario, showScenarioDesc } from '/host/inklab/scenarios.js';
 
 /** 控制台每个动作都可能抛（比如没开麦就注入转写）——统一在这里说人话，不让异常沉进 console。 */
@@ -109,6 +109,10 @@ export function wireConsole() {
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape' && runtimeMenu.open) runtimeMenu.open = false;
   }, true);
+  $('entry-picker').onchange = event => selectPreviewEntry(event.target.value).catch(error => {
+    $('entry-picker').value = state.entry?.path || '';
+    boot(esc(error.message), 'err');
+  });
   $('preview-mode').onchange = () => applyPreviewMode($('preview-mode').value);
   $('lighting-profile').onchange = () => applyLightingProfile($('lighting-profile').value);
   $('mirror').onchange = () => {

@@ -39,8 +39,10 @@ export function showScenarioDesc() {
 export async function runScenario(id = $('scenario-pick').value, options = {}) {
   options = options && typeof options === 'object' ? options : {};
   const scenario = findScenario(id);
-  const stage = primaryStage();
   if (!scenario) throw new Error(`没有这个场景：${id}`);
+  const widget = options.widget || scenario.widget;
+  if (widget && state.entry?.path !== widget) await state.selectEntry(widget);
+  const stage = primaryStage();
   if (!stage) throw new Error('引擎还没跑起来');
   const out = $('scenario-out');
   state.scenarioRunning = true;

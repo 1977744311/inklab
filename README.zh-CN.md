@@ -22,6 +22,8 @@
 
 InkLab 用的是 Rokid 在 npm 上发布、并嵌在 AIUI Studio 与 Craft 网页里的同一个渲染引擎，因此**它能替代在 Craft 里手动点测，但不能替代最终的真机验收**：光学显示、功耗、真实传感器精度、麦克风收音和蓝牙信号仍需在真实眼镜上验证。
 
+声明了 Widget 的工程会在预览工具栏出现「入口」，可在应用首页与 1×1、1×2 小组件之间切换。可用 `?widget=widgets/name/index` 直接打开，或用 `inklab-e2e <工程> --widget widgets/name/index --scenario <场景>` 跑场景。
+
 ## 快速开始
 
 需要 Node.js 22 或更高版本，以及 Chrome 浏览器。无需 `npm install` 安装任何运行时依赖。

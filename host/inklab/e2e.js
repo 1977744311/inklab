@@ -17,6 +17,7 @@ export function stampFor(scenarioId) {
   if (!state.lastLoad || !main) throw new Error('还没装载完，算不了源码指纹');
   const { files } = state.lastLoad;
   const fixtureParts = [];
+  if (main.widget) fixtureParts.push(`widget:${main.widget}`);
   const players = Number(new URLSearchParams(location.search).get('player-count') || 1);
   if (players > 1) fixtureParts.push(`players:${players}`);
   // 默认 E2E 口径保持旧 stamp：Studio 黑底 + mock 相机/蓝牙 + llm off 不额外加噪。

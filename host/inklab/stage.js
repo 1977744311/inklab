@@ -79,7 +79,7 @@ export function selectedRuntimeRows(info) {
   return fallback ? [fallback] : [];
 }
 
-export function renderStageShells(runtimes) {
+export function renderStageShells(runtimes, entry) {
   const light = normalizeLightingProfile(state.lighting);
   const preview = normalizePreviewMode(state.previewMode);
   const multi = runtimes.length > 1;
@@ -89,8 +89,8 @@ export function renderStageShells(runtimes) {
       + `${multi ? `<span class="tag" title="${index === 0 ? '主舞台：场景、截图和录屏的权威画面' : '独立 WASM / appId'}">${index === 0 ? '主' : index + 1}</span>` : ''}`
       + `${esc(runtime.label)}</span>`
       + `<span class="stage-version">${esc(runtimeDisplayVersion(runtime))}</span></div>`
-      + `<div class="optical-stage preview-${preview} light-${light}" data-optical-runtime="${esc(runtime.id)}">`
-      + `<canvas data-runtime-canvas="${esc(runtime.id)}" width="480" height="352" tabindex="${index === 0 ? '0' : '-1'}"></canvas>`
+      + `<div class="optical-stage preview-${preview} light-${light}" data-optical-runtime="${esc(runtime.id)}" data-entry="${entry.path ? 'widget' : 'page'}" style="--entry-aspect: ${entry.width} / ${entry.height}">`
+      + `<canvas data-runtime-canvas="${esc(runtime.id)}" data-widget-family="${entry.family || ''}" width="${entry.width}" height="${entry.height}" tabindex="${index === 0 ? '0' : '-1'}"></canvas>`
       + `<canvas class="preview-composite" aria-hidden="true"></canvas></div>`
       + `<div class="stage-meta"><span data-runtime-status="${esc(runtime.id)}">等待启动</span>`
       + `${index === 0 ? '<span class="keys"><kbd>↑</kbd><kbd>↓</kbd> 焦点 <kbd>Enter</kbd> 执行 <kbd>Backspace</kbd> 返回</span>' : ''}</div>`
@@ -133,7 +133,7 @@ export function applyLightingProfile(value, { record = true } = {}) {
   for (const stage of state.stages) drawStagePreview(stage);
   $('lighting-state').textContent = state.previewMode === 'optical'
     ? `${profile.label} · AR 480×640`
-    : '效果预览 · 480×352';
+    : `效果预览 · ${state.entry?.width || 480}×${state.entry?.height || 352}`;
   const url = new URL(location.href);
   url.searchParams.set('lighting', id);
   history.replaceState(null, '', url);
@@ -194,7 +194,7 @@ export function setSourceBadge(info) {
 }
 
 export async function bootStage({
-  id, runtime, canvas, width, height, scaleFactor, primary, files, info, mod, llm, cameraMode,
+  id, runtime, canvas, width, height, widget, scaleFactor, primary, files, info, mod, llm, cameraMode,
   bluetooth, bluetoothMode, mockAudioCaptureEnabled = false,
 }) {
   const fleet = Number(new URLSearchParams(location.search).get('player-count') || 1);
@@ -287,7 +287,6 @@ export async function bootStage({
     write('log', `[${id}] perf ${esc(JSON.stringify(e))}`, 'dim');
   });
 
-  view.setInteractive?.(true);
   // 只接指针/滚轮；键盘见 keyboardSink 的注释。**不开 syncFocus**（文件头第 2 条）。
   view.bindDomEvents({ canvas, keyboardTarget: keyboardSink, focusTarget: canvas });
   view.focus?.(); // 实测新建即 focused，这一行是幂等保险，不是「装载期必须 focus」的那条迷信
@@ -301,7 +300,7 @@ export async function bootStage({
     globalThis.fetch = caps.net.wrapFetch(llm?.mode === 'off' || !llm ? hostFetch : caps.llm.fetch);
     globalThis.WebSocket = caps.net.wrapWebSocket(hostWebSocket);
   }
-  view.openBundle({ appId, hostOptions: { initialTarget: '_blank' }, files: mod.normalizeBundleFiles(files) });
+  openEntryBundle(view, mod, appId, files, widget);
   // startRendering 起持续渲染循环（rAF）。页面不可见时它会停，程序化输入靠 pump 兜底。
   // One 20fps pump per realm keeps six WASM engines within a laptop's budget.
   if (fleet <= 1) view.startRendering?.();
@@ -309,7 +308,7 @@ export async function bootStage({
   const stage = {
     id, runtime, mod, uninstallNet, primary: Boolean(primary), canvas, view, caps, probe, dispatchEvent,
     hostCapabilities, cameraMode, computerTakePhoto, bluetooth, bluetoothMode,
-    width, height, scaleFactor, appId,
+    width, height, scaleFactor, appId, widget,
   };
   stage.previewCanvas = canvas.parentElement.querySelector('.preview-composite');
   drawStagePreview(stage);
@@ -323,6 +322,31 @@ export async function bootStage({
   }, id);
   boot(`[${id}] <span class="ok">已跑起来</span> ${esc(runtimeDisplayVersion(runtime))} · ${width}×${height} @${scaleFactor} · isRunning=${view.isRunning?.()}`, 'ok');
   return stage;
+}
+
+function openEntryBundle(view, mod, appId, files, widget) {
+  view.setInteractive?.(!widget);
+  view.openBundle({
+    appId, ...(widget ? { initialPage: widget } : {}),
+    hostOptions: { initialTarget: widget ? '_widget' : '_blank' }, files: mod.normalizeBundleFiles(files),
+  });
+  view.setInteractive?.(!widget);
+}
+
+// Reopen in the same view. Destroying the Web SDK instance discards its synchronous
+// stores; a full document navigation also discards its in-memory OPFS.
+export function reopenStage(stage, files, entry) {
+  const { view, mod, appId, canvas, scaleFactor } = stage;
+  view.setViewport(entry.width, entry.height, scaleFactor);
+  Object.assign(stage, { widget: entry.path, width: entry.width, height: entry.height });
+  canvas.dataset.widgetFamily = entry.family || '';
+  canvas.style.width = entry.width + 'px';
+  canvas.style.height = entry.height + 'px';
+  canvas.parentElement.style.setProperty('--entry-aspect', entry.width + ' / ' + entry.height);
+  canvas.parentElement.dataset.entry = entry.path ? 'widget' : 'page';
+  openEntryBundle(view, mod, appId, files, entry.path);
+  drawStagePreview(stage);
+  setRuntimeStatus(stage.id, `运行中 · ${entry.width}×${entry.height} @${scaleFactor}`, 'ok');
 }
 
 export function disposeStage(stage) {

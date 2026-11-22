@@ -45,6 +45,19 @@ test('真机模拟等比输出 3:4 竖帧，AIUI 画布在上下正中', () => {
   });
 });
 
+test('1×1 Widget keeps its logical width inside the optical frame at either display scale', () => {
+  for (const dpr of [1, 2]) {
+    const canvas = { width: 239 * dpr, height: 140 * dpr, dataset: { widgetFamily: '1x1' } };
+    const studio = previewGeometry(canvas, 'studio'), optical = previewGeometry(canvas, 'optical');
+    assert.equal(studio.width, canvas.width);
+    assert.equal(studio.height, canvas.height);
+    assert.equal(optical.width, 480 * dpr);
+    assert.equal(optical.height, 640 * dpr);
+    assert.equal(optical.content.width, canvas.width);
+    assert.equal(optical.content.height, canvas.height);
+  }
+});
+
 test('效果预览导出横幅 source-over，真机模拟导出竖幅黑底透明合成', () => {
   const calls = [];
   const ctx = fakeContext(calls);

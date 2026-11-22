@@ -11,6 +11,14 @@ import {
 } from '../lib/node/e2e.mjs';
 import { hash16, stableStringify } from '../lib/caps/llm.mjs';
 
+test('Widget entry survives CLI parsing and construction of the scenario URL', () => {
+  const widget = 'widgets/rank/index';
+  const options = parseE2eArgs(['fixtures/demo', '--widget', widget]);
+  assert.equal(options.widget, widget);
+  assert.equal(new URL(buildPageUrl('http://localhost/', options)).searchParams.get('widget'), widget);
+  assert.throws(() => parseE2eArgs(['fixtures/demo', '--widget']), /--widget/);
+});
+
 test('参数解析：场景可多次给也可逗号分隔，未知参数与坏 llm 模式当场抛', () => {
   const opts = parseE2eArgs([
     'apps/x', '--scenario', 'a,b', '--scenario', 'c',

@@ -13,11 +13,11 @@ import {
   refreshRecordingState, stageRecorder, stopRecordingTicker, stopStageRecording,
 } from '/host/inklab/recording.js';
 import {
-  loadProject, loadProjectScenarios, resolveLlm, selectedBluetoothMode, selectedCameraMode,
+  loadProject, loadProjectScenarios, previewEntry, resolveLlm, selectedBluetoothMode, selectedCameraMode,
 } from '/host/inklab/project.js';
 import {
   applyLightingProfile, applyPreviewMode, bootStage, canvasForRuntime, disposeStage, makeDriver,
-  refreshHeaderMeta, renderRuntimePicker, renderStageShells, selectedRuntimeRows, setRuntimeStatus,
+  refreshHeaderMeta, reopenStage, renderRuntimePicker, renderStageShells, selectedRuntimeRows, setRuntimeStatus,
   setSourceBadge,
 } from '/host/inklab/stage.js';
 import { renderScenarioPicker } from '/host/inklab/scenarios.js';
@@ -27,6 +27,32 @@ import { renderScenarioPicker } from '/host/inklab/scenarios.js';
 let starting = null;
 let mockAudioCapture = null;
 globalThis.addEventListener?.('pagehide', () => mockAudioCapture?.dispose());
+
+export async function selectPreviewEntry(path) {
+  if (starting) await starting;
+  if (state.scenarioRunning) throw new Error('请等当前场景结束后切换入口');
+  if (stageRecorder.active) await stopStageRecording({ download: true });
+  const url = new URL(location.href);
+  if (path) url.searchParams.set('widget', path);
+  else url.searchParams.delete('widget');
+  history.replaceState(null, '', url);
+  if (!state.ready || state.runtimeErrors.length) return start();
+  const { files } = state.lastLoad;
+  state.ready = false;
+  try {
+    const entry = previewEntry(files);
+    state.bootLogFrom = engineLog.length;
+    for (const stage of state.stages) reopenStage(stage, files, entry);
+    state.entry = entry;
+    applyLightingProfile(state.lighting, { record: false });
+    evidenceLedger.record('entry.open', { entry: path || 'page', width: entry.width, height: entry.height });
+    state.ready = true;
+  } catch (error) {
+    state.bootError = error.message;
+    boot(esc(error.message), 'err');
+    throw error;
+  }
+}
 
 export async function start() {
   if (starting) return starting; // 热重载连推两条时别把引擎重启叠起来
@@ -92,7 +118,8 @@ export async function start() {
       const selectedRuntimes = selectedRuntimeRows(info);
       if (!selectedRuntimes.length) throw new Error('没有可用的运行时 lane；先跑 inklab-engine');
       state.runtimeSelection = selectedRuntimes.map((runtime) => runtime.id);
-      renderStageShells(selectedRuntimes);
+      state.entry = previewEntry(files);
+      renderStageShells(selectedRuntimes, state.entry);
       applyPreviewMode(state.previewMode, { record: false });
       applyLightingProfile(state.lighting, { record: false });
       evidenceLedger.record('source.loaded', {
@@ -128,7 +155,7 @@ export async function start() {
           await mod.initInk({ wasmUrl: new URL(`/runtimes/${encodeURIComponent(id)}/engine.wasm`, location.origin) });
           boot(`[${esc(id)}] 引擎 <span class="acc">ink_web ${esc(mod.getInkVersion())}</span>（锁定本地 wasm）`, 'ok');
           const stage = await bootStage({
-            id, runtime, canvas: canvasForRuntime(id), width: 480, height: 352,
+            id, runtime, canvas: canvasForRuntime(id), width: state.entry.width, height: state.entry.height, widget: state.entry.path,
             scaleFactor: Number(new URLSearchParams(location.search).get('player-count')) > 1 ? 1 : (window.devicePixelRatio || 2), primary: state.stages.length === 0,
             files, info, mod, llm: llm.opts, cameraMode: state.cameraMode,
             bluetooth: state.bluetooth, bluetoothMode: state.bluetoothMode,
