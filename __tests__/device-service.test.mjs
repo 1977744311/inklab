@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer, request } from 'node:http';
 import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { setTimeout as delay } from 'node:timers/promises';
 import { createDeviceService, createDeviceHandler, readDeviceConfig, loadDeviceScenarios, parseAdbDevices, pngMetadata, MAX_DEVICE_RECORDING_BYTES } from '../lib/node/device-service.mjs';
 import { parseDeviceArgs } from '../lib/node/device-e2e.mjs';
 import { nullDeviceLogs } from '../lib/node/device-logs.mjs';
@@ -12,7 +14,7 @@ import { nullDeviceLogs } from '../lib/node/device-logs.mjs';
 const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aRZkAAAAASUVORK5CYII=', 'base64');
 const vision = { status: async () => ({ available: true }), read: async () => ({ status: 'available', text: '完成3组' }) };
 const mp4 = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from('ftypisom'), Buffer.alloc(12)]);
-async function fixture(t, { asrText = true, sleepFn } = {}) {
+async function fixture(t, { asrText = true, sleepFn, disconnectGraceMs } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'inklab-device-test-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const appDir = join(root, 'app');
@@ -27,7 +29,8 @@ async function fixture(t, { asrText = true, sleepFn } = {}) {
     return { stdout: JSON.stringify({ dispatched: true, resultVerified: false }) };
   };
   const service = createDeviceService({ appDir, enabled: true, profile: 'test-adapter', asrText,
-    outputDir: join(root, 'output'), execute, vision, sleepFn, logStream: nullDeviceLogs() });
+    outputDir: join(root, 'output'), execute, vision, sleepFn, logStream: nullDeviceLogs(), lockDir: join(root, 'locks'), disconnectGraceMs });
+  t.after(() => service.close());
   await service.status();
   return { root, appDir, calls, service, execute };
 }
@@ -112,6 +115,56 @@ test('scene evidence is saved to local run.json and no package identity is fabri
   assert.equal(report.businessVerified, true);
   assert.equal(report.package.verification, 'not-observed-by-inklab');
   assert.equal(report.serial, 'A');
+});
+
+test('释放真机会等在途设备操作收尾，并丢弃它后面排队的保存', async (t) => {
+  const entered = Promise.withResolvers();
+  const finish = Promise.withResolvers();
+  const { service } = await fixture(t, { asrText: false, sleepFn: () => { entered.resolve(); return finish.promise; } });
+  await service.select('A');
+  const running = service.manual({ command: 'key', value: 'right', waitMs: 10 });
+  await entered.promise;
+  try {
+    assert.equal(service.sourceChanged(), true);
+    const ending = service.release();
+    assert.ok((await service.status()).lock.owned);
+    assert.equal(service.sourceChanged(), false);
+    await assert.rejects(service.push(), { statusCode: 409 });
+    finish.resolve();
+    await running;
+    assert.deepEqual(await ending, { released: true });
+  } finally { finish.resolve(); }
+  const { lock, push } = await service.status();
+  assert.equal(lock.owner, null);
+  assert.equal(push.status, 'idle');
+  assert.equal(push.pending, false);
+});
+
+test('刷新和多个真机标签页共用占用，只有最后一页断开才自动释放', async (t) => {
+  const { service } = await fixture(t, { disconnectGraceMs: 20 });
+  await service.select('A');
+  function tab() {
+    const res = Object.assign(new EventEmitter(), { writeHead() {}, end() {} });
+    service.logs.subscribe(res);
+    return () => res.emit('close');
+  }
+  const first = tab();
+  const second = tab();
+  await service.acquire();
+  first();
+  await delay(40);
+  assert.ok((await service.status()).lock.owned);
+  second();
+  const refreshed = tab();
+  await delay(40);
+  assert.ok((await service.status()).lock.owned);
+  refreshed();
+  assert.equal(service.sourceChanged(), true, '重连窗口内的保存先挂起');
+  await delay(40);
+  const { lock, push } = await service.status();
+  assert.equal(lock.owner, null);
+  assert.equal(push.pending, false);
+  assert.equal(push.status, 'idle', '最后一页确实关闭，挂起的保存不能再推');
 });
 
 test('cross-origin and missing-token writes cannot reach ADB', async (t) => {
@@ -239,7 +292,7 @@ test('project device config supplies ASR capability and a relocatable control sc
   assert.deepEqual(readDeviceConfig(appDir), {});
   await writeFile(join(appDir, 'inklab.device.json'), JSON.stringify({ profile: 'custom', asrText: true, controlScript: 'adapters/control.mjs' }));
   assert.equal(readDeviceConfig(appDir).asrText, true);
-  const service = createDeviceService({ appDir, enabled: true, execute, vision, outputDir: join(root, 'configured-output'), logStream: nullDeviceLogs() });
+  const service = createDeviceService({ appDir, enabled: true, execute, vision, outputDir: join(root, 'configured-output'), logStream: nullDeviceLogs(), lockDir: join(root, 'locks') });
   t.after(() => service.close());
   const status = await service.status();
   assert.equal(status.profile, 'custom');

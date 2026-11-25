@@ -6,14 +6,14 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { deviceWarnings, parseDeviceInfo } from '../lib/node/device-info.mjs';
+import { deviceWarnings, INFO_SCRIPT, parseDeviceInfo } from '../lib/node/device-info.mjs';
 import { GESTURES, KEY_TO_GESTURE, gestureScript, profileById, touchpadProfileFor } from '../lib/node/device-input.mjs';
 import {
   assistantLogCommand, assistantProgress, closeAssistant, developCall, installAgent, instanceReady, openAgent, parseDevelopResult, parseDeveloperManifest, presentedSince, teardownSince,
   parseProviderReply, projectAgent, projectSlug, requireNoError, withDeveloperMode,
 } from '../lib/node/device-agent.mjs';
 import { createDeviceService } from '../lib/node/device-service.mjs';
-import { createDeviceLogs, notableLogs, parseLogLine } from '../lib/node/device-logs.mjs';
+import { createDeviceLogs, notableLogs, nullDeviceLogs, parseLogLine } from '../lib/node/device-logs.mjs';
 import { EventEmitter } from 'node:events';
 import { parseSubcommand } from '../lib/node/device-e2e.mjs';
 import { matchDeviceRuntime } from '../lib/runtime-lock.mjs';
@@ -342,11 +342,48 @@ async function serviceFixture(t, { build, adbOptions = {} } = {}) {
   });
   const builds = [];
   const fakeBuild = build || (async (dir) => { builds.push(dir); installed = `md5-${builds.length}`; return { aixPath: join(root, 'x.aix'), md5: installed, bytes: 10, cleanup: async () => {} }; });
-  const service = createDeviceService({ appDir, enabled: true, serial: 'SN1', execute: adb.execute, outputDir: join(root, 'out'),
+  const service = createDeviceService({ appDir, enabled: true, serial: 'SN1', execute: adb.execute, outputDir: join(root, 'out'), lockDir: join(root, 'locks'),
     vision: { status: async () => ({ available: false }), read: async () => ({}) }, sleepFn: async () => {}, build: fakeBuild,
     runtimeMatcher: (version) => ({ id: `lane-for-${version}`, match: 'exact' }), logStream: createDeviceLogs({ spawnProcess: fakeLogcat }) });
-  return { service, adb, builds, appDir };
+  t.after(() => service.close());
+  return { service, adb, builds, appDir, lockDir: join(root, 'locks') };
 }
+
+test('一次推送后仍独占眼镜，另一工程的无线连接、CLI 调试入口和源码保存都不能接管', async (t) => {
+  const { service, lockDir } = await serviceFixture(t);
+  const wifi = '192.0.2.1:5555';
+  const peer = createDeviceService({ appDir: join(lockDir, 'other-app'), enabled: true, serial: wifi, lockDir,
+    logStream: nullDeviceLogs(), vision: { status: async () => ({ available: false }) },
+    execute: async (_file, args) => {
+      if (args[0] === 'devices') return { stdout: `SN1 device\n${wifi} device\nSN2 device\n` };
+      if (args[3] === INFO_SCRIPT) return { stdout: `hardwareSerial=${args[1] === 'SN2' ? 'SN2' : 'SN1'}\n${INFO}` };
+      assert.fail(`未持锁的工程发出了设备指令 ${args.join(' ')}`);
+    } });
+  t.after(() => peer.close());
+  await service.push();
+  const { lock } = await peer.status();
+  assert.equal(lock.owned, false);
+  assert.equal(lock.owner.agentId, 'develop.rokid.inklab.demo');
+  assert.equal(peer.sourceChanged(), false);
+  for (const attempt of [() => peer.push(), () => peer.open(), () => peer.exit(), () => peer.manual({ command: 'gesture', value: 'tap' }),
+    () => peer.startRun('one'), () => peer.mirror.start(), () => peer.imu.listen()]) {
+    await assert.rejects(attempt, { statusCode: 409, message: /develop\.rokid\.inklab\.demo/ });
+  }
+  assert.deepEqual(await peer.release(), { released: false });
+  await assert.rejects(service.open({ agentId: 'develop.rokid.inklab.other' }), { statusCode: 409 });
+  await peer.select('SN2');
+  await peer.acquire(); // 另一副眼镜可同时用
+  assert.ok((await service.status()).lock.owned);
+  await peer.select(wifi);
+  assert.equal((await peer.status()).lock.owned, false);
+  await service.exit();
+  await peer.acquire();
+  await peer.select('SN1');
+  assert.ok((await peer.status()).lock.owned, '同一副眼镜换 USB 仍持锁');
+  assert.equal(service.sourceChanged(), false);
+  await service.close();
+  assert.ok((await peer.status()).lock.owned, '旧工作台关闭不能影响新占用者');
+});
 
 test('推到真机：打包 → 安装 → 打开 → 等第一帧 → 截图，状态里写清结果', async (t) => {
   const { service, builds, appDir } = await serviceFixture(t);
@@ -366,6 +403,19 @@ test('推到真机：打包 → 安装 → 打开 → 等第一帧 → 截图，
   assert.deepEqual(logcatStarts.at(-1), ['-s', 'SN1', 'logcat', '-v', 'epoch', '-T', '1']);
   assert.deepEqual(result.logs.map((entry) => [entry.source, entry.level, entry.text]), [['app', 'warn', '[audio] 播放失败 music']]);
   assert.deepEqual(result.reclaimed, { closed: true, already: true, taps: 0, dropped: 0 }, '助手没开：不双击');
+});
+
+test('打开已装的另一款智能体后，保存当前工程也不能把它换掉', async (t) => {
+  const agentId = 'develop.rokid.inklab.guest';
+  const { service } = await serviceFixture(t, { adbOptions: {
+    aiuiLog: () => aiui(101, { event: 'fullscreen_present_result', agent_id: agentId, outcome: 'COMMITTED' }),
+  } });
+  assert.ok((await service.open({ agentId, page: 'pages/home/index' })).presented);
+  assert.equal((await service.status()).lock.owner.agentId, agentId);
+  assert.equal(service.sourceChanged(), false);
+  await assert.rejects(service.push(), { statusCode: 409 });
+  await service.release();
+  assert.equal((await service.acquire()).agentId, 'develop.rokid.inklab.demo');
 });
 
 test('推到真机：打开之前先把助手整个关掉，旧实例一起销毁，结果写进状态', async (t) => {
@@ -398,6 +448,8 @@ test('日志解析：应用日志、引擎日志、运行时事件摘要，其�
 test('保存即推送：推送进行中又保存的，结束后合成一次再推；关掉后不再推', async (t) => {
   const { service, builds } = await serviceFixture(t);
   await service.status();
+  assert.equal(service.sourceChanged(), false, '选中眼镜但未开始调试时，保存不能抢真机');
+  await service.acquire();
   assert.equal(service.sourceChanged(), true); // 立刻开始推
   assert.equal(service.sourceChanged(), true); // 推送进行中：记一次待推
   assert.equal(service.sourceChanged(), true); // 再保存：仍只是那一次待推
@@ -415,6 +467,7 @@ test('推送失败时状态里记下卡在哪一步', async (t) => {
   const { service } = await serviceFixture(t, { build: async () => { throw new Error('aiui build 失败：包太大'); } });
   await service.status();
   await assert.rejects(service.push(), /包太大/);
+  assert.equal((await service.status()).lock.owner, null, '首次推送失败释放刚申请的锁');
   const { push } = await service.status();
   assert.equal(push.status, 'failed');
   assert.equal(push.stage, '打包');

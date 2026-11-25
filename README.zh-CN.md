@@ -44,7 +44,7 @@ inklab fixtures/cap-probe-app --open
 
 - 第一次用：跟着[使用指南 · 五分钟上手](docs/guide.md#五分钟上手)走一遍。
 - 写自动化测试：[写场景](docs/guide.md#写场景)、[跑自动化测试](docs/guide.md#跑自动化测试)。
-- 连真眼镜：[USB 连真机](docs/device.md)。
+- 连上眼镜后，点「开始调试」或「推到真机」即可独占这副眼镜。只有占用它的工程能操作真机和保存即推送。用完点「释放真机」交给下一个工程，关闭最后一个真机页或停止 InkLab 也会释放。[USB 连真机](docs/device.md)
 
 以上命令使用 v0.3.0。参与 InkLab 开发时请使用 `main`。[发布说明](https://github.com/1977744311/inklab/releases/tag/v0.3.0) · [贡献指南](CONTRIBUTING.md)
 

@@ -44,7 +44,7 @@ The header switches between three modes: **模拟器** (simulator), **USB 真机
 
 - First time: walk through the guide's [five-minute tour](docs/guide.md#五分钟上手).
 - Automated tests: [writing scenarios](docs/guide.md#写场景) and [running them](docs/guide.md#跑自动化测试).
-- Real glasses: [USB setup](docs/device.md).
+- For real glasses, choose **开始调试** (start debugging) or push the app to reserve the selected pair. Only its owner can control it or push on save. **释放真机** (release device) hands it to the next project. Closing the last device tab or stopping InkLab also releases it. [USB setup](docs/device.md)
 
 This quick start uses v0.3.0. For InkLab development, use `main`. [Release notes](https://github.com/1977744311/inklab/releases/tag/v0.3.0) · [Contributing](CONTRIBUTING.md)
 

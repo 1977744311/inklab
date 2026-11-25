@@ -27,6 +27,9 @@
       <div class="row device-picker">
         <select id="device-select" aria-label="目标眼镜"></select><button id="connect" title="改用下拉框里这副眼镜">选用</button>
       </div>
+      <div class="row">
+        <button id="device-session" disabled>开始调试</button><span id="device-owner" class="notice" role="status"></span>
+      </div>
       <p id="device-note" role="status" class="notice"></p>
       <p id="device-facts" class="muted small"></p>
       <ul id="device-warnings" class="device-warnings"></ul>
@@ -106,7 +109,7 @@
             <button id="open-agent" title="不重新装包，直接打开">只打开</button>
             <button id="exit-agent" title="连续双击把 AI 助手整个关掉，助手里的实例（包括推送留下的旧实例）一起销毁">关掉助手</button>
           </div>
-          <label class="chk small"><input type="checkbox" id="auto-push"> 保存源码时自动推送</label>
+          <label class="chk small"><input type="checkbox" id="auto-push"> 调试期间保存源码时自动推送</label>
           <p id="push-note" class="muted small" role="status"></p>
           <details id="agents-section" class="sub-details">
             <summary class="disclosure small" title="只列开发者通道的调试包；手机同步装的智能体 adb 读不到名字">眼镜上的调试包</summary>

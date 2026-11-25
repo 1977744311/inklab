@@ -18,14 +18,28 @@ async function api(path, body) {
 function note(text, error = false) { $('device-note').textContent = text; $('device-note').classList.toggle('error', error); }
 function controls() {
   const connected = state.status?.enabled && state.status?.devices.some((d) => d.serial === state.status.serial && d.state === 'device');
-  for (const button of document.querySelectorAll('[data-gesture],#capture,#wake,#say,#run,#push,#open-agent,#exit-agent,#imu-apply')) button.disabled = state.busy || !connected;
+  const lock = state.status?.lock;
+  const heldElsewhere = lock?.owner && !lock.owned;
+  const blocked = state.busy || !connected || Boolean(heldElsewhere);
+  const otherAgent = lock?.owned && lock.owner.agentId !== state.status.agent?.agentId;
+  for (const button of document.querySelectorAll('[data-gesture],#capture,#wake,#say,#run,#push,#open-agent,#exit-agent,#imu-apply,#imu-live-panel button')) button.disabled = blocked;
+  for (const button of $('agents-list').querySelectorAll('button')) {
+    button.disabled = blocked || (lock?.owned && button.dataset.agent !== lock.owner.agentId);
+  }
+  for (const id of ['push', 'open-agent', 'imu-apply']) $(id).disabled ||= otherAgent;
+  $('device-session').textContent = lock?.owned ? '释放真机' : '开始调试';
+  $('device-session').disabled = lock?.owned ? state.busy : blocked;
+  $('device-owner').textContent = lock?.owner
+    ? `${lock.owned ? '本工作台正在调试' : '真机已被占用'} · ${lock.owner.agentId || lock.owner.project}`
+    : connected ? '真机空闲' : '';
+  $('device-owner').title = lock?.owner?.project || '';
   $('push').disabled ||= Boolean(state.status?.agentError) || state.status?.push?.status === 'running';
   $('say').disabled ||= !state.status?.capabilities.asrText;
   $('wake').disabled ||= !state.status?.capabilities.wakeAssistant;
   $('run').disabled ||= !selectedScenario()?.support.supported;
   $('connect').disabled = state.busy || !state.status?.enabled;
   $('stop').disabled = !state.runId || !state.busy;
-  $('mirror-toggle').disabled = mirrorView.state().starting || (!connected && !mirrorView.state().active);
+  $('mirror-toggle').disabled = mirrorView.state().starting || (blocked && !mirrorView.state().active);
 }
 const mirrorView = createMirrorView({ api, onState: () => controls(), onNote: note,
   hasEvidence: () => Boolean(state.screen) });
@@ -228,6 +242,10 @@ const handle = (fn) => () => { Promise.resolve().then(fn).catch((err) => note(er
 $('refresh').onclick = handle(refresh);
 $('mirror-toggle').onclick = handle(() => mirrorView.toggle());
 $('connect').onclick = handle(async () => { await api('select', { serial: $('device-select').value }); await refresh(); });
+$('device-session').onclick = handle(() => act(async () => {
+  await api(state.status.lock.owned ? 'release' : 'acquire', {});
+  await refresh();
+}));
 $('capture').onclick = handle(() => act(async () => displayShot(await api('capture', { name: 'manual', ocr: true }))));
 for (const button of document.querySelectorAll('[data-gesture]')) button.onclick = handle(() => {
   const { active, mode } = mirrorView.state();
@@ -255,9 +273,11 @@ async function renderAgents() {
     label.textContent = `${agent.agentName || agent.agentId}${agent.agentId === mine ? '（本工程）' : ''} `;
     const id = document.createElement('small'); id.textContent = `${agent.agentId} · ${agent.nativeVersion}`; label.append(id);
     const open = document.createElement('button'); open.textContent = '打开';
+    open.dataset.agent = agent.agentId;
     open.onclick = handle(() => pushAction('open', agent.agentId === mine ? { page: $('push-page').value } : { agentId: agent.agentId }));
     li.append(label, open); return li;
   }));
+  controls();
 }
 
 // ── 真机日志：服务端读 logcat，挑出应用日志、运行时事件和引擎日志，SSE 推过来 ──
@@ -278,11 +298,15 @@ function appendLog(entry) {
 }
 let logStream = null;
 function connectLogs() {
-  if (logStream || !state.token || !state.status?.serial) return;
-  logStream = new EventSource(`/api/device/logs/events/${state.token}`);
+  if (!state.token || !state.status?.serial) return;
+  const url = new URL(`/api/device/logs/events/${state.token}`, location.href).href;
+  if (logStream?.url === url && logStream.readyState !== EventSource.CLOSED) return;
+  logStream?.close();
+  logStream = new EventSource(url);
   logStream.onmessage = (event) => { try { appendLog(JSON.parse(event.data)); } catch { /* 坏行跳过 */ } };
-  logStream.onerror = () => { logStream?.close(); logStream = null; };
 }
+window.addEventListener('pagehide', () => { logStream?.close(); logStream = null; });
+window.addEventListener('pageshow', (event) => { if (event.persisted) refresh().catch((err) => note(err.message, true)); });
 for (const box of document.querySelectorAll('[data-log-source]')) box.onchange = () => {
   const show = logSources();
   for (const li of $('device-logs').children) li.hidden = !show.has(li.dataset.source);
@@ -353,7 +377,10 @@ setInterval(() => {
   if (!state.ready || state.busy || document.hidden || !state.status?.enabled) return;
   // 还没选上眼镜：等它连上就自动选（选上了才整页刷新）
   if (!state.status.serial) { api('enable', {}).then((status) => { if (status.serial) refresh(); }).catch(() => {}); return; }
-  api('status').then((status) => { state.status = status; renderPush(); controls(); }).catch(() => {});
+  api('status').then((status) => {
+    state.status = status; state.token = status.token;
+    connectLogs(); renderPush(); controls();
+  }).catch(() => {});
   renderImu().catch(() => {});
 }, 3000);
 $('say').onclick = handle(() => command({ command: 'say', value: $('speech').value, waitMs: 800 }));

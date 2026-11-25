@@ -285,7 +285,8 @@ async function pushFixture(t, { port = 0 } = {}) {
   };
   const service = createDeviceService({ appDir, enabled: true, serial: 'SN1', execute: adb.execute, outputDir: join(appDir, '..', 'out'),
     vision: { status: async () => ({ available: false }), read: async () => ({}) }, sleepFn: async () => {}, build,
-    logStream: fakeLogs(), hostPort: () => port });
+    logStream: fakeLogs(), hostPort: () => port, lockDir: join(appDir, '..', 'locks') });
+  t.after(() => service.close());
   return { service, adb, builds, appDir };
 }
 
